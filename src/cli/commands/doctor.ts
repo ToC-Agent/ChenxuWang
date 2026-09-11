@@ -9,16 +9,16 @@ import {
 } from "node:os";
 
 import {
-  join,
-} from "node:path";
-
-import {
   spawnSync,
 } from "node:child_process";
 
 import {
   TONGYU_VERSION,
 } from "../../constants.js";
+
+import {
+  getRuntimePaths,
+} from "../../runtime/paths.js";
 
 type DoctorStatus =
   | "PASS"
@@ -31,9 +31,15 @@ interface DoctorResult {
   detail: string;
 }
 
-function checkWritable(path: string): boolean {
+function checkWritable(
+  path: string,
+): boolean {
   try {
-    accessSync(path, fsConstants.W_OK);
+    accessSync(
+      path,
+      fsConstants.W_OK,
+    );
+
     return true;
   } catch {
     return false;
@@ -47,31 +53,38 @@ function getNodeMajorVersion(): number {
 }
 
 function checkGit(): DoctorResult {
-  const result = spawnSync(
-    "git",
-    ["--version"],
-    {
-      encoding: "utf8",
-    },
-  );
+  const result =
+    spawnSync(
+      "git",
+      ["--version"],
+      {
+        encoding: "utf8",
+      },
+    );
 
-  if (result.error || result.status !== 0) {
+  if (
+    result.error ||
+    result.status !== 0
+  ) {
     return {
       name: "Git",
       status: "FAIL",
-      detail: "git command is unavailable",
+      detail:
+        "git command is unavailable",
     };
   }
 
   return {
     name: "Git",
     status: "PASS",
-    detail: result.stdout.trim(),
+    detail:
+      result.stdout.trim(),
   };
 }
 
 function runChecks(): DoctorResult[] {
-  const results: DoctorResult[] = [];
+  const results: DoctorResult[] =
+    [];
 
   results.push({
     name: "Tongyu Version",
@@ -79,29 +92,33 @@ function runChecks(): DoctorResult[] {
     detail: TONGYU_VERSION,
   });
 
-  const nodeMajor = getNodeMajorVersion();
+  const nodeMajor =
+    getNodeMajorVersion();
 
   results.push({
     name: "Node.js Version",
-    status: nodeMajor >= 24
-      ? "PASS"
-      : "FAIL",
+    status:
+      nodeMajor >= 24
+        ? "PASS"
+        : "FAIL",
     detail: process.version,
   });
 
   results.push({
     name: "Platform",
-    status: process.platform === "darwin"
-      ? "PASS"
-      : "WARN",
+    status:
+      process.platform === "darwin"
+        ? "PASS"
+        : "WARN",
     detail: process.platform,
   });
 
   results.push({
     name: "Architecture",
-    status: process.arch === "arm64"
-      ? "PASS"
-      : "WARN",
+    status:
+      process.arch === "arm64"
+        ? "PASS"
+        : "WARN",
     detail: process.arch,
   });
 
@@ -114,13 +131,16 @@ function runChecks(): DoctorResult[] {
 
   results.push({
     name: "Shell",
-    status: shell
-      ? "PASS"
-      : "WARN",
-    detail: shell ?? "unknown",
+    status:
+      shell
+        ? "PASS"
+        : "WARN",
+    detail:
+      shell ?? "unknown",
   });
 
-  const cwd = process.cwd();
+  const cwd =
+    process.cwd();
 
   results.push({
     name: "Working Directory",
@@ -132,7 +152,8 @@ function runChecks(): DoctorResult[] {
     detail: cwd,
   });
 
-  const home = homedir();
+  const home =
+    homedir();
 
   results.push({
     name: "Home Directory",
@@ -144,15 +165,16 @@ function runChecks(): DoctorResult[] {
     detail: home,
   });
 
-  const runtimeDirectory =
-    join(home, ".tongyu");
+  const runtimePaths =
+    getRuntimePaths();
 
   results.push({
     name: "Runtime Directory",
     status: "PASS",
-    detail: existsSync(runtimeDirectory)
-      ? runtimeDirectory
-      : `${runtimeDirectory} (not created yet)`,
+    detail:
+      existsSync(runtimePaths.root)
+        ? runtimePaths.root
+        : `${runtimePaths.root} (not created yet)`,
   });
 
   return results;
@@ -180,7 +202,9 @@ export function runDoctor(): void {
   const results =
     runChecks();
 
-  for (const result of results) {
+  for (
+    const result of results
+  ) {
     printResult(result);
   }
 
@@ -198,7 +222,9 @@ export function runDoctor(): void {
         result.status === "WARN",
     );
 
-  if (failures.length > 0) {
+  if (
+    failures.length > 0
+  ) {
     console.error(
       `Doctor found ${failures.length} failure(s) and ${warnings.length} warning(s).`,
     );
@@ -207,7 +233,9 @@ export function runDoctor(): void {
     return;
   }
 
-  if (warnings.length > 0) {
+  if (
+    warnings.length > 0
+  ) {
     console.log(
       `Doctor completed with ${warnings.length} warning(s).`,
     );
