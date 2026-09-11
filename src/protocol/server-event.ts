@@ -3,6 +3,10 @@ import {
 } from "zod";
 
 import {
+  SessionEventSchema,
+} from "../session/events.js";
+
+import {
   TONGYU_PROTOCOL_VERSION,
 } from "./constants.js";
 
@@ -81,6 +85,96 @@ const SessionCreatedEventSchema =
 
     cwd:
       z.string().min(1),
+  }).strict();
+
+const SessionResumedEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "session.resumed",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    cwd:
+      z.string().min(1),
+
+    status:
+      z.enum([
+        "active",
+        "completed",
+        "interrupted",
+        "error",
+      ]),
+
+    createdAt:
+      TimestampSchema,
+
+    updatedAt:
+      TimestampSchema,
+
+    eventCount:
+      z.number()
+        .int()
+        .nonnegative(),
+  }).strict();
+
+const SessionHistoryEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "session.history.event",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    event:
+      SessionEventSchema,
+  }).strict();
+
+const SessionHistoryEndEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "session.history.end",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    eventCount:
+      z.number()
+        .int()
+        .nonnegative(),
   }).strict();
 
 const UserMessageRecordedEventSchema =
@@ -275,6 +369,9 @@ export const ServerEventSchema =
     [
       ControlInitializedEventSchema,
       SessionCreatedEventSchema,
+      SessionResumedEventSchema,
+      SessionHistoryEventSchema,
+      SessionHistoryEndEventSchema,
       UserMessageRecordedEventSchema,
       AssistantDeltaEventSchema,
       AssistantMessageEventSchema,

@@ -53,6 +53,20 @@ const SessionCreateMessageSchema =
         .optional(),
   }).strict();
 
+const SessionResumeMessageSchema =
+  z.object({
+    id:
+      MessageIdSchema,
+
+    type:
+      z.literal(
+        "session.resume",
+      ),
+
+    sessionId:
+      z.string().min(1),
+  }).strict();
+
 const UserMessageSchema =
   z.object({
     id:
@@ -90,6 +104,7 @@ export const ClientMessageSchema =
     [
       ControlInitializeMessageSchema,
       SessionCreateMessageSchema,
+      SessionResumeMessageSchema,
       UserMessageSchema,
       ControlInterruptMessageSchema,
     ],

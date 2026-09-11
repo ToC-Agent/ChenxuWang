@@ -256,6 +256,170 @@ export async function runStdioServer(): Promise<void> {
 
     if (
       message.type ===
+      "session.resume"
+    ) {
+      try {
+        const snapshot =
+          sessionManager.resume(
+            message.sessionId,
+          );
+
+        const eventCount =
+          snapshot.events.length;
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "session.resumed",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          cwd:
+            snapshot.session.cwd,
+
+          status:
+            snapshot.session.status,
+
+          createdAt:
+            snapshot.session.createdAt,
+
+          updatedAt:
+            snapshot.session.updatedAt,
+
+          eventCount,
+        });
+
+        for (
+          const event of
+          snapshot.events
+        ) {
+          writeEvent({
+            id:
+              createEventId(),
+
+            type:
+              "session.history.event",
+
+            timestamp:
+              Date.now(),
+
+            requestId:
+              message.id,
+
+            sessionId:
+              snapshot.session.id,
+
+            event,
+          });
+        }
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "session.history.end",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          eventCount,
+        });
+      } catch (error) {
+        if (
+          error instanceof
+          InvalidSessionIdError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "INVALID_SESSION_ID",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          SessionNotFoundError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "SESSION_NOT_FOUND",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          SessionCorruptError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "SESSION_CORRUPT",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          SessionEventCorruptError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "SESSION_EVENT_CORRUPT",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        writeEvent(
+          createRuntimeError(
+            "SESSION_RESUME_FAILED",
+            "Failed to resume Tongyu session.",
+            message.id,
+            message.sessionId,
+          ),
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
       "user.message"
     ) {
       try {
