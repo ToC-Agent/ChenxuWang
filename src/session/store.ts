@@ -9,6 +9,19 @@ import {
   join,
 } from "node:path";
 
+import {
+  SessionCorruptError,
+  SessionNotFoundError,
+} from "./errors.js";
+
+import {
+  SessionSchema,
+} from "./schema.js";
+
+import {
+  validateSessionId,
+} from "./session-id.js";
+
 import type {
   Session,
 } from "./types.js";
@@ -27,9 +40,14 @@ export class SessionStore {
   getSessionDirectory(
     sessionId: string,
   ): string {
+    const validatedSessionId =
+      validateSessionId(
+        sessionId,
+      );
+
     return join(
       this.sessionsRoot,
-      sessionId,
+      validatedSessionId,
     );
   }
 
@@ -47,6 +65,10 @@ export class SessionStore {
   save(
     session: Session,
   ): void {
+    validateSessionId(
+      session.id,
+    );
+
     const sessionDirectory =
       this.getSessionDirectory(
         session.id,
@@ -95,19 +117,74 @@ export class SessionStore {
   load(
     sessionId: string,
   ): Session {
-    const sessionFile =
-      this.getSessionFile(
+    const validatedSessionId =
+      validateSessionId(
         sessionId,
       );
 
-    const content =
-      readFileSync(
-        sessionFile,
-        "utf8",
+    const sessionFile =
+      this.getSessionFile(
+        validatedSessionId,
       );
 
-    return JSON.parse(
-      content,
-    ) as Session;
+    let content: string;
+
+    try {
+      content =
+        readFileSync(
+          sessionFile,
+          "utf8",
+        );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        throw new SessionNotFoundError(
+          validatedSessionId,
+        );
+      }
+
+      throw error;
+    }
+
+    let input: unknown;
+
+    try {
+      input =
+        JSON.parse(
+          content,
+        );
+    } catch {
+      throw new SessionCorruptError(
+        validatedSessionId,
+        "session.json is not valid JSON",
+      );
+    }
+
+    const result =
+      SessionSchema.safeParse(
+        input,
+      );
+
+    if (!result.success) {
+      throw new SessionCorruptError(
+        validatedSessionId,
+        "session.json does not match the Tongyu session schema",
+      );
+    }
+
+    if (
+      result.data.id !==
+      validatedSessionId
+    ) {
+      throw new SessionCorruptError(
+        validatedSessionId,
+        "session id does not match its directory",
+      );
+    }
+
+    return result.data;
   }
 }

@@ -7,6 +7,10 @@ import {
 } from "../runtime/context.js";
 
 import {
+  SessionEventStore,
+} from "./event-store.js";
+
+import {
   SessionStore,
 } from "./store.js";
 
@@ -53,8 +57,17 @@ export class SessionManager {
         context.paths.sessions,
       );
 
+    const eventStore =
+      new SessionEventStore(
+        context.paths.sessions,
+      );
+
     store.save(
       session,
+    );
+
+    eventStore.initialize(
+      session.id,
     );
 
     return session;
