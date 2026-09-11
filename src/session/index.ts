@@ -38,5 +38,6 @@ export {
 export type {
   CreateSessionOptions,
   Session,
+  SessionSnapshot,
   SessionStatus,
 } from "./types.js";

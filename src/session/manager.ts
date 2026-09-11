@@ -31,6 +31,7 @@ import {
 import type {
   CreateSessionOptions,
   Session,
+  SessionSnapshot,
 } from "./types.js";
 
 function createSessionId(): string {
@@ -101,6 +102,38 @@ export class SessionManager {
     return store.load(
       sessionId,
     );
+  }
+
+  resume(
+    sessionId: string,
+  ): SessionSnapshot {
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const eventStore =
+      new SessionEventStore(
+        paths.sessions,
+      );
+
+    const session =
+      store.load(
+        sessionId,
+      );
+
+    const events =
+      eventStore.readAll(
+        session.id,
+      );
+
+    return {
+      session,
+      events,
+    };
   }
 
   recordUserMessage(

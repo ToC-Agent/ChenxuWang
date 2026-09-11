@@ -1,3 +1,7 @@
+import type {
+  SessionEvent,
+} from "./events.js";
+
 export type SessionStatus =
   | "active"
   | "completed"
@@ -14,4 +18,9 @@ export interface Session {
 
 export interface CreateSessionOptions {
   cwd?: string;
+}
+
+export interface SessionSnapshot {
+  session: Session;
+  events: SessionEvent[];
 }
