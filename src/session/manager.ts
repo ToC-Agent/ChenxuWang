@@ -7,8 +7,21 @@ import {
 } from "../runtime/context.js";
 
 import {
+  initializeRuntime,
+} from "../runtime/initialize.js";
+
+import {
+  SessionNotActiveError,
+} from "./errors.js";
+
+import {
   SessionEventStore,
 } from "./event-store.js";
+
+import {
+  createSessionEventId,
+  type SessionEvent,
+} from "./events.js";
 
 import {
   SessionStore,
@@ -76,16 +89,74 @@ export class SessionManager {
   load(
     sessionId: string,
   ): Session {
-    const context =
-      createRuntimeContext();
+    const paths =
+      initializeRuntime();
 
     const store =
       new SessionStore(
-        context.paths.sessions,
+        paths.sessions,
       );
 
     return store.load(
       sessionId,
     );
+  }
+
+  recordUserMessage(
+    sessionId: string,
+    requestId: string,
+    content: string,
+  ): SessionEvent {
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const session =
+      store.load(
+        sessionId,
+      );
+
+    if (
+      session.status !==
+      "active"
+    ) {
+      throw new SessionNotActiveError(
+        session.id,
+        session.status,
+      );
+    }
+
+    const eventStore =
+      new SessionEventStore(
+        paths.sessions,
+      );
+
+    const event: SessionEvent = {
+      id:
+        createSessionEventId(),
+
+      type:
+        "user.message",
+
+      timestamp:
+        Date.now(),
+
+      sessionId:
+        session.id,
+
+      requestId,
+
+      content,
+    };
+
+    eventStore.append(
+      event,
+    );
+
+    return event;
   }
 }

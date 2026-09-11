@@ -51,3 +51,17 @@ export class SessionEventCorruptError extends Error {
       "SessionEventCorruptError";
   }
 }
+
+export class SessionNotActiveError extends Error {
+  constructor(
+    sessionId: string,
+    status: string,
+  ) {
+    super(
+      `Tongyu session is not active: ${sessionId}, status=${status}`,
+    );
+
+    this.name =
+      "SessionNotActiveError";
+  }
+}

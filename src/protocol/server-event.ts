@@ -83,6 +83,29 @@ const SessionCreatedEventSchema =
       z.string().min(1),
   }).strict();
 
+const UserMessageRecordedEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "user.message.recorded",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    sessionEventId:
+      z.string().min(1),
+  }).strict();
+
 const AssistantDeltaEventSchema =
   z.object({
     id:
@@ -252,6 +275,7 @@ export const ServerEventSchema =
     [
       ControlInitializedEventSchema,
       SessionCreatedEventSchema,
+      UserMessageRecordedEventSchema,
       AssistantDeltaEventSchema,
       AssistantMessageEventSchema,
       ToolCallEventSchema,

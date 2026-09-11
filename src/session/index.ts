@@ -30,6 +30,7 @@ export {
   InvalidSessionIdError,
   SessionCorruptError,
   SessionEventCorruptError,
+  SessionNotActiveError,
   SessionNotFoundError,
 } from "./errors.js";
 

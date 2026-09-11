@@ -28,7 +28,11 @@ import {
 } from "../runtime/working-directory.js";
 
 import {
+  InvalidSessionIdError,
+  SessionCorruptError,
   SessionManager,
+  SessionNotActiveError,
+  SessionNotFoundError,
 } from "../session/index.js";
 
 function createEventId(): string {
@@ -241,6 +245,115 @@ export async function runStdioServer(): Promise<void> {
             "SESSION_CREATE_FAILED",
             "Failed to create Tongyu session.",
             message.id,
+          ),
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
+      "user.message"
+    ) {
+      try {
+        const sessionEvent =
+          sessionManager.recordUserMessage(
+            message.sessionId,
+            message.id,
+            message.content,
+          );
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "user.message.recorded",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            message.sessionId,
+
+          sessionEventId:
+            sessionEvent.id,
+        });
+      } catch (error) {
+        if (
+          error instanceof
+          InvalidSessionIdError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "INVALID_SESSION_ID",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          SessionNotFoundError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "SESSION_NOT_FOUND",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          SessionCorruptError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "SESSION_CORRUPT",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          SessionNotActiveError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "SESSION_NOT_ACTIVE",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        writeEvent(
+          createRuntimeError(
+            "USER_MESSAGE_FAILED",
+            "Failed to record user message.",
+            message.id,
+            message.sessionId,
           ),
         );
       }
