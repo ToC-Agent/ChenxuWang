@@ -230,4 +230,40 @@ export class SessionEventStore {
 
     return events;
   }
+
+  findUserMessageByRequestId(
+    sessionId: string,
+    requestId: string,
+  ): Extract<
+    SessionEvent,
+    {
+      type: "user.message";
+    }
+  > | undefined {
+    const events =
+      this.readAll(
+        sessionId,
+      );
+
+    for (
+      let index =
+        events.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const event =
+        events[index];
+
+      if (
+        event.type ===
+          "user.message" &&
+        event.requestId ===
+          requestId
+      ) {
+        return event;
+      }
+    }
+
+    return undefined;
+  }
 }

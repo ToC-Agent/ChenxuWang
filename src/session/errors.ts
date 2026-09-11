@@ -65,3 +65,17 @@ export class SessionNotActiveError extends Error {
       "SessionNotActiveError";
   }
 }
+
+export class RequestIdConflictError extends Error {
+  constructor(
+    sessionId: string,
+    requestId: string,
+  ) {
+    super(
+      `Tongyu request id conflict: ${requestId}, session=${sessionId}`,
+    );
+
+    this.name =
+      "RequestIdConflictError";
+  }
+}

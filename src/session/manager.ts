@@ -11,6 +11,7 @@ import {
 } from "../runtime/initialize.js";
 
 import {
+  RequestIdConflictError,
   SessionNotActiveError,
 } from "./errors.js";
 
@@ -106,7 +107,15 @@ export class SessionManager {
     sessionId: string,
     requestId: string,
     content: string,
-  ): SessionEvent {
+  ): {
+    event: Extract<
+      SessionEvent,
+      {
+        type: "user.message";
+      }
+    >;
+    replayed: boolean;
+  } {
     const paths =
       initializeRuntime();
 
@@ -120,6 +129,38 @@ export class SessionManager {
         sessionId,
       );
 
+    const eventStore =
+      new SessionEventStore(
+        paths.sessions,
+      );
+
+    const existingEvent =
+      eventStore
+        .findUserMessageByRequestId(
+          session.id,
+          requestId,
+        );
+
+    if (existingEvent) {
+      if (
+        existingEvent.content !==
+        content
+      ) {
+        throw new RequestIdConflictError(
+          session.id,
+          requestId,
+        );
+      }
+
+      return {
+        event:
+          existingEvent,
+
+        replayed:
+          true,
+      };
+    }
+
     if (
       session.status !==
       "active"
@@ -130,12 +171,12 @@ export class SessionManager {
       );
     }
 
-    const eventStore =
-      new SessionEventStore(
-        paths.sessions,
-      );
-
-    const event: SessionEvent = {
+    const event: Extract<
+      SessionEvent,
+      {
+        type: "user.message";
+      }
+    > = {
       id:
         createSessionEventId(),
 
@@ -157,6 +198,11 @@ export class SessionManager {
       event,
     );
 
-    return event;
+    return {
+      event,
+
+      replayed:
+        false,
+    };
   }
 }

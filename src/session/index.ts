@@ -28,6 +28,7 @@ export {
 
 export {
   InvalidSessionIdError,
+  RequestIdConflictError,
   SessionCorruptError,
   SessionEventCorruptError,
   SessionNotActiveError,

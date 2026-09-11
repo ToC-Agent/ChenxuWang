@@ -29,7 +29,9 @@ import {
 
 import {
   InvalidSessionIdError,
+  RequestIdConflictError,
   SessionCorruptError,
+  SessionEventCorruptError,
   SessionManager,
   SessionNotActiveError,
   SessionNotFoundError,
@@ -257,7 +259,9 @@ export async function runStdioServer(): Promise<void> {
       "user.message"
     ) {
       try {
-        const sessionEvent =
+        const {
+          event: sessionEvent,
+        } =
           sessionManager.recordUserMessage(
             message.sessionId,
             message.id,
@@ -323,6 +327,38 @@ export async function runStdioServer(): Promise<void> {
           writeEvent(
             createRuntimeError(
               "SESSION_CORRUPT",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          RequestIdConflictError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "REQUEST_ID_CONFLICT",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          SessionEventCorruptError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "SESSION_EVENT_CORRUPT",
               error.message,
               message.id,
               message.sessionId,
