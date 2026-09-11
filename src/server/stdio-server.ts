@@ -3,6 +3,17 @@ import {
 } from "node:crypto";
 
 import {
+  AgentModelStreamError,
+  AgentTurn,
+  AgentTurnInputError,
+} from "../agent/index.js";
+
+import {
+  FakeModelProvider,
+  type ModelProvider,
+} from "../model/index.js";
+
+import {
   createInterface,
 } from "node:readline";
 
@@ -84,11 +95,35 @@ function getSessionId(
   return undefined;
 }
 
-export async function runStdioServer(): Promise<void> {
+export interface StdioServerOptions {
+  modelProvider?:
+    ModelProvider;
+}
+
+export async function runStdioServer(
+  options:
+    StdioServerOptions = {},
+): Promise<void> {
   initializeRuntime();
 
   const sessionManager =
     new SessionManager();
+
+  const modelProvider =
+    options.modelProvider ??
+    new FakeModelProvider({
+      prefix:
+        "Tongyu: ",
+
+      chunkSize:
+        4,
+    });
+
+  const agentTurn =
+    new AgentTurn(
+      modelProvider,
+      sessionManager,
+    );
 
   let initialized =
     false;
@@ -451,6 +486,64 @@ export async function runStdioServer(): Promise<void> {
           sessionEventId:
             sessionEvent.id,
         });
+
+        for await (
+          const agentEvent of
+          agentTurn.stream({
+            sessionId:
+              message.sessionId,
+
+            requestId:
+              message.id,
+          })
+        ) {
+          if (
+            agentEvent.type ===
+            "assistant.delta"
+          ) {
+            writeEvent({
+              id:
+                createEventId(),
+
+              type:
+                "assistant.delta",
+
+              timestamp:
+                Date.now(),
+
+              requestId:
+                agentEvent.requestId,
+
+              sessionId:
+                agentEvent.sessionId,
+
+              text:
+                agentEvent.text,
+            });
+
+            continue;
+          }
+
+          writeEvent({
+            id:
+              createEventId(),
+
+            type:
+              "assistant.message",
+
+            timestamp:
+              Date.now(),
+
+            requestId:
+              agentEvent.requestId,
+
+            sessionId:
+              agentEvent.sessionId,
+
+            content:
+              agentEvent.content,
+          });
+        }
       } catch (error) {
         if (
           error instanceof
@@ -548,10 +641,42 @@ export async function runStdioServer(): Promise<void> {
           continue;
         }
 
+        if (
+          error instanceof
+          AgentTurnInputError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "AGENT_TURN_INVALID",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        if (
+          error instanceof
+          AgentModelStreamError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "MODEL_STREAM_FAILED",
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
         writeEvent(
           createRuntimeError(
             "USER_MESSAGE_FAILED",
-            "Failed to record user message.",
+            "Failed to process user message.",
             message.id,
             message.sessionId,
           ),
