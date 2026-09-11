@@ -3,6 +3,10 @@ import {
 } from "../constants.js";
 
 import {
+  runStdioServer,
+} from "../server/stdio-server.js";
+
+import {
   printBanner,
 } from "./banner.js";
 
@@ -14,9 +18,9 @@ import {
   printHelp,
 } from "./help.js";
 
-export function runCli(
+export async function runCli(
   args: string[],
-): void {
+): Promise<void> {
   if (args.length === 0) {
     printBanner();
     return;
@@ -42,6 +46,10 @@ export function runCli(
 
     case "doctor":
       runDoctor();
+      return;
+
+    case "server":
+      await runStdioServer();
       return;
 
     default:

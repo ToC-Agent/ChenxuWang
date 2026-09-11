@@ -23,6 +23,10 @@ export function printHelp(): void {
 
   console.log("Commands:");
   console.log(
+    "  server        Start Tongyu stdio server",
+  );
+
+  console.log(
     "  doctor        Check Tongyu environment",
   );
 
