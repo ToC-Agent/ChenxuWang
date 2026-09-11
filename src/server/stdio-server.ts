@@ -23,6 +23,14 @@ import {
   initializeRuntime,
 } from "../runtime/initialize.js";
 
+import {
+  WorkingDirectoryError,
+} from "../runtime/working-directory.js";
+
+import {
+  SessionManager,
+} from "../session/index.js";
+
 function createEventId(): string {
   return `evt-${randomUUID()}`;
 }
@@ -72,6 +80,9 @@ function getSessionId(
 
 export async function runStdioServer(): Promise<void> {
   initializeRuntime();
+
+  const sessionManager =
+    new SessionManager();
 
   let initialized =
     false;
@@ -156,7 +167,7 @@ export async function runStdioServer(): Promise<void> {
           TONGYU_VERSION,
 
         capabilities: {
-          sessions: false,
+          sessions: true,
           streaming: true,
           interrupt: false,
           tools: false,
@@ -175,6 +186,64 @@ export async function runStdioServer(): Promise<void> {
           getSessionId(message),
         ),
       );
+
+      continue;
+    }
+
+    if (
+      message.type ===
+      "session.create"
+    ) {
+      try {
+        const session =
+          sessionManager.create({
+            cwd:
+              message.cwd,
+          });
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "session.created",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            session.id,
+
+          cwd:
+            session.cwd,
+        });
+      } catch (error) {
+        if (
+          error instanceof
+          WorkingDirectoryError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "INVALID_WORKING_DIRECTORY",
+              error.message,
+              message.id,
+            ),
+          );
+
+          continue;
+        }
+
+        writeEvent(
+          createRuntimeError(
+            "SESSION_CREATE_FAILED",
+            "Failed to create Tongyu session.",
+            message.id,
+          ),
+        );
+      }
 
       continue;
     }
