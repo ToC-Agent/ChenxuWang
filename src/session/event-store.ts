@@ -266,4 +266,41 @@ export class SessionEventStore {
 
     return undefined;
   }
+
+  findAssistantMessageByRequestId(
+    sessionId: string,
+    requestId: string,
+  ): Extract<
+    SessionEvent,
+    {
+      type: "assistant.message";
+    }
+  > | undefined {
+    const events =
+      this.readAll(
+        sessionId,
+      );
+
+    for (
+      let index =
+        events.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const event =
+        events[index];
+
+      if (
+        event.type ===
+          "assistant.message" &&
+        event.requestId ===
+          requestId
+      ) {
+        return event;
+      }
+    }
+
+    return undefined;
+  }
+
 }

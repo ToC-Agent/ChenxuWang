@@ -238,4 +238,108 @@ export class SessionManager {
         false,
     };
   }
+
+  recordAssistantMessage(
+    sessionId: string,
+    requestId: string,
+    content: string,
+  ): {
+    event: Extract<
+      SessionEvent,
+      {
+        type: "assistant.message";
+      }
+    >;
+    replayed: boolean;
+  } {
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const session =
+      store.load(
+        sessionId,
+      );
+
+    const eventStore =
+      new SessionEventStore(
+        paths.sessions,
+      );
+
+    const existingEvent =
+      eventStore
+        .findAssistantMessageByRequestId(
+          session.id,
+          requestId,
+        );
+
+    if (existingEvent) {
+      if (
+        existingEvent.content !==
+        content
+      ) {
+        throw new RequestIdConflictError(
+          session.id,
+          requestId,
+        );
+      }
+
+      return {
+        event:
+          existingEvent,
+
+        replayed:
+          true,
+      };
+    }
+
+    if (
+      session.status !==
+      "active"
+    ) {
+      throw new SessionNotActiveError(
+        session.id,
+        session.status,
+      );
+    }
+
+    const event: Extract<
+      SessionEvent,
+      {
+        type: "assistant.message";
+      }
+    > = {
+      id:
+        createSessionEventId(),
+
+      type:
+        "assistant.message",
+
+      timestamp:
+        Date.now(),
+
+      sessionId:
+        session.id,
+
+      requestId,
+
+      content,
+    };
+
+    eventStore.append(
+      event,
+    );
+
+    return {
+      event,
+
+      replayed:
+        false,
+    };
+  }
+
 }
