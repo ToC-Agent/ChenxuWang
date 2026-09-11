@@ -27,5 +27,8 @@
   },
   "bin": {
     "tongyu": "dist/cli.js"
+  },
+  "dependencies": {
+    "zod": "^4.6.2"
   }
 }

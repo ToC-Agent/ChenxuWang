@@ -1,0 +1,275 @@
+import {
+  z,
+} from "zod";
+
+import {
+  TONGYU_PROTOCOL_VERSION,
+} from "./constants.js";
+
+const EventIdSchema =
+  z.string().min(1);
+
+const RequestIdSchema =
+  z.string().min(1);
+
+const SessionIdSchema =
+  z.string().min(1);
+
+const TimestampSchema =
+  z.number()
+    .int()
+    .nonnegative();
+
+const ControlInitializedEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "control.initialized",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    protocolVersion:
+      z.literal(
+        TONGYU_PROTOCOL_VERSION,
+      ),
+
+    runtimeVersion:
+      z.string().min(1),
+
+    capabilities:
+      z.object({
+        sessions:
+          z.boolean(),
+
+        streaming:
+          z.boolean(),
+
+        interrupt:
+          z.boolean(),
+
+        tools:
+          z.boolean(),
+      }).strict(),
+  }).strict();
+
+const SessionCreatedEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "session.created",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    cwd:
+      z.string().min(1),
+  }).strict();
+
+const AssistantDeltaEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "assistant.delta",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    text:
+      z.string(),
+  }).strict();
+
+const AssistantMessageEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "assistant.message",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    content:
+      z.string(),
+  }).strict();
+
+const ToolCallEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "tool.call",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    toolCallId:
+      z.string().min(1),
+
+    name:
+      z.string().min(1),
+
+    arguments:
+      z.record(
+        z.string(),
+        z.unknown(),
+      ),
+  }).strict();
+
+const ToolResultEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "tool.result",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    toolCallId:
+      z.string().min(1),
+
+    result:
+      z.unknown(),
+
+    isError:
+      z.boolean()
+        .optional(),
+  }).strict();
+
+const RuntimeErrorEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "runtime.error",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema
+        .optional(),
+
+    sessionId:
+      SessionIdSchema
+        .optional(),
+
+    code:
+      z.string().min(1),
+
+    message:
+      z.string().min(1),
+  }).strict();
+
+const SessionEndEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "session.end",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    reason:
+      z.enum([
+        "completed",
+        "interrupted",
+        "error",
+      ]),
+  }).strict();
+
+export const ServerEventSchema =
+  z.discriminatedUnion(
+    "type",
+    [
+      ControlInitializedEventSchema,
+      SessionCreatedEventSchema,
+      AssistantDeltaEventSchema,
+      AssistantMessageEventSchema,
+      ToolCallEventSchema,
+      ToolResultEventSchema,
+      RuntimeErrorEventSchema,
+      SessionEndEventSchema,
+    ],
+  );
+
+export type ServerEvent =
+  z.infer<
+    typeof ServerEventSchema
+  >;
+
+export function parseServerEvent(
+  input: unknown,
+): ServerEvent {
+  return ServerEventSchema.parse(
+    input,
+  );
+}
