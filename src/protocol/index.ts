@@ -13,3 +13,10 @@ export {
   parseServerEvent,
   type ServerEvent,
 } from "./server-event.js";
+
+export {
+  ProtocolDecodeError,
+  decodeClientMessage,
+  encodeServerEvent,
+  type ProtocolDecodeErrorCode,
+} from "./codec.js";
