@@ -7,6 +7,10 @@ import {
 } from "./builtins/filesystem-write.js";
 
 import {
+  shellExecTool,
+} from "./builtins/shell-exec.js";
+
+import {
   ToolRegistry,
 } from "./registry.js";
 
@@ -21,6 +25,10 @@ export function createDefaultToolRegistry():
 
   registry.register(
     filesystemWriteTool,
+  );
+
+  registry.register(
+    shellExecTool,
   );
 
   return registry;

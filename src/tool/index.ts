@@ -56,3 +56,11 @@ export {
 export type {
   FilesystemWriteOutput,
 } from "./builtins/filesystem-write.js";
+
+export {
+  shellExecTool,
+} from "./builtins/shell-exec.js";
+
+export type {
+  ShellExecOutput,
+} from "./builtins/shell-exec.js";
