@@ -71,6 +71,22 @@ const SessionResumeMessageSchema =
       z.string().min(1),
   }).strict();
 
+const SessionCloseMessageSchema =
+  z.object({
+    id:
+      z.string()
+        .min(1),
+
+    type:
+      z.literal(
+        "session.close",
+      ),
+
+    sessionId:
+      SessionIdSchema,
+  }).strict();
+
+
 const UserMessageSchema =
   z.object({
     id:
@@ -135,6 +151,7 @@ export const ClientMessageSchema =
       ControlInitializeMessageSchema,
       SessionCreateMessageSchema,
       SessionResumeMessageSchema,
+      SessionCloseMessageSchema,
       UserMessageSchema,
       PermissionResponseMessageSchema,
       ControlInterruptMessageSchema,

@@ -294,6 +294,74 @@ export async function runStdioServer(
     });
   }
 
+  function isTerminalTurnStatus(
+    status:
+      TurnLifecycleStatus |
+      undefined,
+  ): boolean {
+    return (
+      status ===
+        "interrupted" ||
+      status ===
+        "completed" ||
+      status ===
+        "failed"
+    );
+  }
+
+  function getLiveActiveTurn(
+    sessionId:
+      string,
+  ): ActiveTurn |
+    undefined {
+    const activeTurn =
+      activeTurns.get(
+        sessionId,
+      );
+
+    if (
+      !activeTurn
+    ) {
+      return undefined;
+    }
+
+    const key =
+      turnStatusKey(
+        sessionId,
+        activeTurn.requestId,
+      );
+
+    const status =
+      turnStatuses.get(
+        key,
+      );
+
+    if (
+      isTerminalTurnStatus(
+        status,
+      )
+    ) {
+      /*
+       * turn.status may reach the client a microtask
+       * before Promise.finally removes ActiveTurn.
+       *
+       * From the protocol client's point of view the
+       * turn is already finished, so prune it here.
+       */
+      activeTurns.delete(
+        sessionId,
+      );
+
+      turnStatuses.delete(
+        key,
+      );
+
+      return undefined;
+    }
+
+    return activeTurn;
+  }
+
   function writeAgentEvent(
     agentEvent:
       AgentTurnEvent,
@@ -829,6 +897,69 @@ export async function runStdioServer(
 
     if (
       message.type ===
+        "session.close"
+    ) {
+      const activeTurn =
+        getLiveActiveTurn(
+          message.sessionId,
+        );
+
+      if (
+        activeTurn
+      ) {
+        writeEvent(
+          createRuntimeError(
+            "SESSION_BUSY",
+            `Tongyu session already has an active turn: ${activeTurn.requestId}`,
+            message.id,
+            message.sessionId,
+          ),
+        );
+
+        continue;
+      }
+
+      try {
+        const result =
+          sessionManager.close(
+            message.sessionId,
+          );
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "session.end",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            result.session.id,
+
+          status:
+            "completed",
+
+          replayed:
+            result.replayed,
+        });
+      } catch (error) {
+        writeTurnError(
+          error,
+          message.id,
+          message.sessionId,
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
       "session.resume"
     ) {
       try {
@@ -996,7 +1127,7 @@ export async function runStdioServer(
         "control.interrupt"
     ) {
       const activeTurn =
-        activeTurns.get(
+        getLiveActiveTurn(
           message.sessionId,
         );
 
@@ -1105,7 +1236,7 @@ export async function runStdioServer(
         "user.message"
     ) {
       const activeTurn =
-        activeTurns.get(
+        getLiveActiveTurn(
           message.sessionId,
         );
 

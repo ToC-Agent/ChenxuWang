@@ -453,7 +453,8 @@ const RuntimeErrorEventSchema =
 const SessionEndEventSchema =
   z.object({
     id:
-      EventIdSchema,
+      z.string()
+        .min(1),
 
     type:
       z.literal(
@@ -461,20 +462,24 @@ const SessionEndEventSchema =
       ),
 
     timestamp:
-      TimestampSchema,
+      z.number()
+        .int()
+        .nonnegative(),
 
     requestId:
-      RequestIdSchema,
+      z.string()
+        .min(1),
 
     sessionId:
       SessionIdSchema,
 
-    reason:
-      z.enum([
+    status:
+      z.literal(
         "completed",
-        "interrupted",
-        "error",
-      ]),
+      ),
+
+    replayed:
+      z.boolean(),
   }).strict();
 
 export const ServerEventSchema =

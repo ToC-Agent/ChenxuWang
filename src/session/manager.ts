@@ -612,4 +612,74 @@ export class SessionManager {
     };
   }
 
+
+  close(
+    sessionId:
+      string,
+  ): {
+    session:
+      Session;
+
+    replayed:
+      boolean;
+  } {
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const session =
+      store.load(
+        sessionId,
+      );
+
+    if (
+      session.status ===
+        "completed"
+    ) {
+      return {
+        session,
+
+        replayed:
+          true,
+      };
+    }
+
+    if (
+      session.status !==
+        "active"
+    ) {
+      throw new SessionNotActiveError(
+        session.id,
+        session.status,
+      );
+    }
+
+    const completedSession:
+      Session = {
+        ...session,
+
+        status:
+          "completed",
+
+        updatedAt:
+          Date.now(),
+      };
+
+    store.save(
+      completedSession,
+    );
+
+    return {
+      session:
+        completedSession,
+
+      replayed:
+        false,
+    };
+  }
+
 }
