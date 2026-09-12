@@ -2,6 +2,7 @@ import type {
   ModelFinishReason,
   ModelProvider,
   ModelRequest,
+  ModelToolCall,
 } from "../model/index.js";
 
 import {
@@ -11,6 +12,7 @@ import {
 } from "../session/index.js";
 
 import {
+  ToolExecutor,
   ToolRegistry,
 } from "../tool/index.js";
 
@@ -31,6 +33,54 @@ import type {
   AgentTurnEvent,
   AgentTurnInput,
 } from "./types.js";
+
+const MAX_TOOL_ROUNDS =
+  16;
+
+function findUnresolvedToolCall(
+  events:
+    readonly SessionEvent[],
+  requestId: string,
+): Extract<
+  SessionEvent,
+  {
+    type: "tool.call";
+  }
+> | undefined {
+  const requestEvents =
+    events.filter(
+      (event) =>
+        event.requestId ===
+        requestId,
+    );
+
+  for (
+    const event of
+      requestEvents
+  ) {
+    if (
+      event.type !==
+      "tool.call"
+    ) {
+      continue;
+    }
+
+    const hasResult =
+      requestEvents.some(
+        (candidate) =>
+          candidate.type ===
+            "tool.result" &&
+          candidate.toolCallId ===
+            event.toolCallId,
+      );
+
+    if (!hasResult) {
+      return event;
+    }
+  }
+
+  return undefined;
+}
 
 export class AgentTurn {
   constructor(
@@ -151,136 +201,335 @@ export class AgentTurn {
       );
     }
 
-    const messages =
-      sessionEventsToModelMessages(
-        snapshot.events,
-      );
-
     const toolDefinitions =
       toolsToModelDefinitions(
         this.toolRegistry.list(),
       );
 
-    const modelRequest:
-      ModelRequest =
-        toolDefinitions.length >
-        0
-          ? {
-              messages,
-              tools:
-                toolDefinitions,
-            }
-          : {
-              messages,
-            };
+    const toolExecutor =
+      new ToolExecutor(
+        this.toolRegistry,
+      );
 
-    let content =
-      "";
+    let toolRoundCount =
+      0;
 
-    let completed =
-      false;
+    while (true) {
+      const roundSnapshot =
+        this.sessionManager.resume(
+          snapshot.session.id,
+        );
 
-    let finishReason:
-      ModelFinishReason |
-      undefined;
+      const unresolvedToolCall =
+        findUnresolvedToolCall(
+          roundSnapshot.events,
+          input.requestId,
+        );
 
-    for await (
-      const event of
-      this.provider.stream(
-        modelRequest,
-      )
-    ) {
-      if (completed) {
+      if (unresolvedToolCall) {
         throw new AgentModelStreamError(
-          "model emitted an event after response.completed",
+          `request contains unresolved tool call ${unresolvedToolCall.toolCallId}; automatic re-execution is disabled`,
+        );
+      }
+
+      const messages =
+        sessionEventsToModelMessages(
+          roundSnapshot.events,
+        );
+
+      const modelRequest:
+        ModelRequest =
+          toolDefinitions.length >
+          0
+            ? {
+                messages,
+
+                tools:
+                  toolDefinitions,
+              }
+            : {
+                messages,
+              };
+
+      let content =
+        "";
+
+      let completed =
+        false;
+
+      let finishReason:
+        ModelFinishReason |
+        undefined;
+
+      const toolCalls:
+        ModelToolCall[] = [];
+
+      const toolCallIds =
+        new Set<string>();
+
+      for await (
+        const event of
+          this.provider.stream(
+            modelRequest,
+          )
+      ) {
+        if (completed) {
+          throw new AgentModelStreamError(
+            "model emitted an event after response.completed",
+          );
+        }
+
+        if (
+          event.type ===
+          "text.delta"
+        ) {
+          if (
+            toolCalls.length >
+            0
+          ) {
+            throw new AgentModelStreamError(
+              "model emitted text and tool calls in the same response",
+            );
+          }
+
+          content +=
+            event.text;
+
+          yield {
+            type:
+              "assistant.delta",
+
+            sessionId:
+              roundSnapshot.session.id,
+
+            requestId:
+              input.requestId,
+
+            text:
+              event.text,
+          };
+
+          continue;
+        }
+
+        if (
+          event.type ===
+          "tool.call"
+        ) {
+          if (
+            content.length >
+            0
+          ) {
+            throw new AgentModelStreamError(
+              "model emitted text and tool calls in the same response",
+            );
+          }
+
+          if (
+            toolCallIds.has(
+              event.call.id,
+            )
+          ) {
+            throw new AgentModelStreamError(
+              `model emitted duplicate tool call id: ${event.call.id}`,
+            );
+          }
+
+          toolCallIds.add(
+            event.call.id,
+          );
+
+          toolCalls.push(
+            event.call,
+          );
+
+          continue;
+        }
+
+        completed =
+          true;
+
+        finishReason =
+          event.finishReason;
+      }
+
+      if (
+        !completed ||
+        finishReason ===
+          undefined
+      ) {
+        throw new AgentModelStreamError(
+          "model stream ended without response.completed",
         );
       }
 
       if (
-        event.type ===
-        "text.delta"
+        finishReason ===
+        "tool_call"
       ) {
-        content +=
-          event.text;
+        if (
+          toolCalls.length ===
+          0
+        ) {
+          throw new AgentModelStreamError(
+            "model completed with tool_call but emitted no tool calls",
+          );
+        }
 
-        yield {
-          type:
-            "assistant.delta",
+        if (
+          toolRoundCount >=
+          MAX_TOOL_ROUNDS
+        ) {
+          throw new AgentModelStreamError(
+            `model exceeded maximum tool rounds: ${MAX_TOOL_ROUNDS}`,
+          );
+        }
 
-          sessionId:
-            snapshot.session.id,
+        toolRoundCount +=
+          1;
 
-          requestId:
-            input.requestId,
+        /*
+         * Persist every tool.call first.
+         *
+         * This is intentionally separate from execution so the
+         * durable history becomes:
+         *
+         * tool.call
+         * tool.call
+         * tool.result
+         * tool.result
+         *
+         * That lets history.ts reconstruct a single assistant
+         * message containing multiple tool calls.
+         */
+        for (
+          const call of
+            toolCalls
+        ) {
+          this.sessionManager
+            .recordToolCall(
+              roundSnapshot.session.id,
+              input.requestId,
+              call.id,
+              call.name,
+              call.arguments,
+            );
+        }
 
-          text:
-            event.text,
-        };
+        /*
+         * Execute sequentially for now.
+         *
+         * Parallel execution can be added later once permission,
+         * cancellation and sandbox semantics are defined.
+         */
+        for (
+          const call of
+            toolCalls
+        ) {
+          const latestSnapshot =
+            this.sessionManager.resume(
+              roundSnapshot.session.id,
+            );
 
+          const existingResult =
+            latestSnapshot.events
+              .find(
+                (
+                  event,
+                ): event is Extract<
+                  SessionEvent,
+                  {
+                    type:
+                      "tool.result";
+                  }
+                > =>
+                  event.type ===
+                    "tool.result" &&
+                  event.requestId ===
+                    input.requestId &&
+                  event.toolCallId ===
+                    call.id,
+              );
+
+          if (existingResult) {
+            continue;
+          }
+
+          const executionResult =
+            await toolExecutor.execute(
+              call,
+              {
+                sessionId:
+                  roundSnapshot.session.id,
+
+                requestId:
+                  input.requestId,
+
+                cwd:
+                  roundSnapshot.session.cwd,
+              },
+            );
+
+          this.sessionManager
+            .recordToolResult(
+              roundSnapshot.session.id,
+              input.requestId,
+              call.id,
+              executionResult.result,
+              executionResult.isError,
+            );
+        }
+
+        /*
+         * The next iteration reloads durable history and sends:
+         *
+         * user
+         * assistant(toolCalls)
+         * tool(result)
+         *
+         * back to the model.
+         */
         continue;
       }
 
       if (
-        event.type ===
-          "tool.call"
+        toolCalls.length >
+        0
       ) {
         throw new AgentModelStreamError(
-          "tool calls are not implemented in AgentTurn yet",
+          `model emitted tool calls with finish reason ${finishReason}`,
         );
       }
 
-      completed =
-        true;
+      const result =
+        this.sessionManager
+          .recordAssistantMessage(
+            roundSnapshot.session.id,
+            input.requestId,
+            content,
+          );
 
-      finishReason =
-        event.finishReason;
-    }
+      yield {
+        type:
+          "assistant.message",
 
-    if (
-      !completed ||
-      finishReason ===
-        undefined
-    ) {
-      throw new AgentModelStreamError(
-        "model stream ended without response.completed",
-      );
-    }
+        sessionId:
+          roundSnapshot.session.id,
 
-    if (
-      finishReason ===
-      "tool_call"
-    ) {
-      throw new AgentModelStreamError(
-        "tool calls are not implemented in AgentTurn yet",
-      );
-    }
-
-    const result =
-      this.sessionManager
-        .recordAssistantMessage(
-          snapshot.session.id,
+        requestId:
           input.requestId,
-          content,
-        );
 
-    yield {
-      type:
-        "assistant.message",
+        sessionEventId:
+          result.event.id,
 
-      sessionId:
-        snapshot.session.id,
+        content:
+          result.event.content,
 
-      requestId:
-        input.requestId,
+        replayed:
+          result.replayed,
+      };
 
-      sessionEventId:
-        result.event.id,
-
-      content:
-        result.event.content,
-
-      replayed:
-        result.replayed,
-    };
+      return;
+    }
   }
 }
