@@ -23,7 +23,7 @@ type JsonRecord =
     unknown
   >;
 
-export interface OpenAIResponsesProviderOptions {
+export interface OpenAICompatibleResponsesProviderOptions {
   apiKey:
     string;
 
@@ -95,7 +95,7 @@ function parseArguments(
       );
   } catch {
     throw new Error(
-      "OpenAI returned invalid JSON tool arguments.",
+      "OpenAI-compatible endpoint returned invalid JSON tool arguments.",
     );
   }
 
@@ -106,7 +106,7 @@ function parseArguments(
 
   if (!record) {
     throw new Error(
-      "OpenAI tool arguments must be a JSON object.",
+      "OpenAI-compatible tool arguments must be a JSON object.",
     );
   }
 
@@ -372,7 +372,7 @@ function parseSseBlock(
     );
   } catch {
     throw new Error(
-      "OpenAI returned an invalid SSE JSON event.",
+      "OpenAI-compatible endpoint returned an invalid SSE JSON event.",
     );
   }
 }
@@ -387,7 +387,7 @@ async function* readSseEvents(
     !response.body
   ) {
     throw new Error(
-      "OpenAI streaming response had no body.",
+      "OpenAI-compatible streaming response had no body.",
     );
   }
 
@@ -542,7 +542,7 @@ async function readErrorMessage(
     : `HTTP ${response.status}`;
 }
 
-export class OpenAIResponsesProvider
+export class OpenAICompatibleResponsesProvider
   implements ModelProvider {
   readonly id:
     string;
@@ -557,7 +557,7 @@ export class OpenAIResponsesProvider
     string;
 
   private readonly reasoningEffort:
-    OpenAIResponsesProviderOptions[
+    OpenAICompatibleResponsesProviderOptions[
       "reasoningEffort"
     ];
 
@@ -566,7 +566,7 @@ export class OpenAIResponsesProvider
 
   constructor(
     options:
-      OpenAIResponsesProviderOptions,
+      OpenAICompatibleResponsesProviderOptions,
   ) {
     const apiKey =
       options.apiKey.trim();
@@ -575,7 +575,7 @@ export class OpenAIResponsesProvider
       !apiKey
     ) {
       throw new Error(
-        "OpenAI API key must not be empty.",
+        "OpenAI-compatible API key must not be empty.",
       );
     }
 
@@ -692,7 +692,7 @@ export class OpenAIResponsesProvider
       !response.ok
     ) {
       throw new Error(
-        `OpenAI Responses request failed: ${await readErrorMessage(response)}`,
+        `OpenAI-compatible Responses request failed: ${await readErrorMessage(response)}`,
       );
     }
 
@@ -795,7 +795,7 @@ export class OpenAIResponsesProvider
             undefined
         ) {
           throw new Error(
-            "OpenAI returned an incomplete function call.",
+            "OpenAI-compatible endpoint returned an incomplete function call.",
           );
         }
 
@@ -898,7 +898,7 @@ export class OpenAIResponsesProvider
               "message",
             )
           ) ??
-          "OpenAI response failed.";
+          "OpenAI-compatible response failed.";
 
         throw new Error(
           message,
@@ -910,8 +910,27 @@ export class OpenAIResponsesProvider
       !emittedCompletion
     ) {
       throw new Error(
-        "OpenAI response stream ended without a terminal event.",
+        "OpenAI-compatible response stream ended without a terminal event.",
       );
     }
   }
 }
+
+
+/*
+ * Backward-compatible aliases.
+ *
+ * OpenAIResponsesProvider was the original name before
+ * Tongyu generalized this adapter for any endpoint that
+ * implements the OpenAI-compatible Responses protocol.
+ */
+export {
+  OpenAICompatibleResponsesProvider
+    as OpenAIResponsesProvider,
+};
+
+export type {
+  OpenAICompatibleResponsesProviderOptions
+    as OpenAIResponsesProviderOptions,
+};
+

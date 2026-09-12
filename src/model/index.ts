@@ -3,28 +3,10 @@ export {
   type FakeModelProviderOptions,
 } from "./fake-provider.js";
 
-export type {
-  ModelProvider,
-} from "./provider.js";
-
-export type {
-  ModelAssistantTextMessage,
-  ModelAssistantToolCallMessage,
-  ModelFinishReason,
-  ModelJsonSchema,
-  ModelMessage,
-  ModelRequest,
-  ModelRole,
-  ModelStreamEvent,
-  ModelSystemMessage,
-  ModelToolCall,
-  ModelToolDefinition,
-  ModelToolResultMessage,
-  ModelUserMessage,
-} from "./types.js";
-
 export {
+  OpenAICompatibleResponsesProvider,
   OpenAIResponsesProvider,
+  type OpenAICompatibleResponsesProviderOptions,
   type OpenAIResponsesProviderOptions,
 } from "./openai-responses-provider.js";
 
@@ -32,3 +14,18 @@ export {
   createModelProviderFromEnvironment,
 } from "./provider-factory.js";
 
+export type {
+  ModelProvider,
+  ModelStreamOptions,
+} from "./provider.js";
+
+export type {
+  ModelFinishReason,
+  ModelJsonSchema,
+  ModelMessage,
+  ModelRequest,
+  ModelRole,
+  ModelStreamEvent,
+  ModelToolCall,
+  ModelToolDefinition,
+} from "./types.js";

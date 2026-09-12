@@ -3,7 +3,7 @@ import {
 } from "./fake-provider.js";
 
 import {
-  OpenAIResponsesProvider,
+  OpenAICompatibleResponsesProvider,
 } from "./openai-responses-provider.js";
 
 import type {
@@ -14,41 +14,176 @@ const DEFAULT_OPENAI_MODEL =
   "gpt-5.6-luna";
 
 type ReasoningEffort =
-  "none"
+  | "none"
   | "low"
   | "medium"
   | "high";
+
+function nonEmpty(
+  value:
+    string | undefined,
+): string | undefined {
+  const normalized =
+    value?.trim();
+
+  return normalized
+    ? normalized
+    : undefined;
+}
 
 function parseReasoningEffort(
   value:
     string | undefined,
 ): ReasoningEffort |
   undefined {
+  const normalized =
+    nonEmpty(
+      value,
+    );
+
   if (
-    value ===
-      undefined ||
-    value.trim() ===
-      ""
+    normalized ===
+      undefined
   ) {
     return undefined;
   }
 
   if (
-    value ===
+    normalized ===
       "none" ||
-    value ===
+    normalized ===
       "low" ||
-    value ===
+    normalized ===
       "medium" ||
-    value ===
+    normalized ===
       "high"
   ) {
-    return value;
+    return normalized;
   }
 
   throw new Error(
-    `Invalid TONGYU_OPENAI_REASONING_EFFORT: ${value}`,
+    `Invalid model reasoning effort: ${normalized}`,
   );
+}
+
+function createOpenAICompatibleProvider(
+  environment:
+    NodeJS.ProcessEnv,
+): ModelProvider {
+  const apiKey =
+    nonEmpty(
+      environment
+        .TONGYU_MODEL_API_KEY,
+    );
+
+  if (
+    !apiKey
+  ) {
+    throw new Error(
+      "TONGYU_MODEL_API_KEY is required when TONGYU_MODEL_PROVIDER=openai-compatible.",
+    );
+  }
+
+  const model =
+    nonEmpty(
+      environment
+        .TONGYU_MODEL_NAME,
+    );
+
+  if (
+    !model
+  ) {
+    throw new Error(
+      "TONGYU_MODEL_NAME is required when TONGYU_MODEL_PROVIDER=openai-compatible.",
+    );
+  }
+
+  const baseUrl =
+    nonEmpty(
+      environment
+        .TONGYU_MODEL_BASE_URL,
+    );
+
+  if (
+    !baseUrl
+  ) {
+    throw new Error(
+      "TONGYU_MODEL_BASE_URL is required when TONGYU_MODEL_PROVIDER=openai-compatible.",
+    );
+  }
+
+  const reasoningEffort =
+    parseReasoningEffort(
+      environment
+        .TONGYU_MODEL_REASONING_EFFORT,
+    );
+
+  return new OpenAICompatibleResponsesProvider({
+    apiKey,
+
+    model,
+
+    baseUrl,
+
+    reasoningEffort,
+  });
+}
+
+function createLegacyOpenAIProvider(
+  environment:
+    NodeJS.ProcessEnv,
+): ModelProvider {
+  const apiKey =
+    nonEmpty(
+      environment
+        .OPENAI_API_KEY,
+    );
+
+  if (
+    !apiKey
+  ) {
+    throw new Error(
+      "OPENAI_API_KEY is required when TONGYU_MODEL_PROVIDER=openai.",
+    );
+  }
+
+  const model =
+    nonEmpty(
+      environment
+        .TONGYU_OPENAI_MODEL,
+    ) ??
+    DEFAULT_OPENAI_MODEL;
+
+  let reasoningEffort =
+    parseReasoningEffort(
+      environment
+        .TONGYU_OPENAI_REASONING_EFFORT,
+    );
+
+  if (
+    reasoningEffort ===
+      undefined &&
+    model.startsWith(
+      "gpt-5.6",
+    )
+  ) {
+    reasoningEffort =
+      "none";
+  }
+
+  return new OpenAICompatibleResponsesProvider({
+    apiKey,
+
+    model,
+
+    baseUrl:
+      nonEmpty(
+        environment
+          .TONGYU_OPENAI_BASE_URL,
+      ),
+
+    reasoningEffort,
+  });
 }
 
 export function createModelProviderFromEnvironment(
@@ -58,12 +193,12 @@ export function createModelProviderFromEnvironment(
 ): ModelProvider {
   const provider =
     (
-      environment
-        .TONGYU_MODEL_PROVIDER ??
+      nonEmpty(
+        environment
+          .TONGYU_MODEL_PROVIDER,
+      ) ??
       "fake"
-    )
-      .trim()
-      .toLowerCase();
+    ).toLowerCase();
 
   if (
     provider ===
@@ -80,60 +215,24 @@ export function createModelProviderFromEnvironment(
 
   if (
     provider ===
+      "openai-compatible"
+  ) {
+    return createOpenAICompatibleProvider(
+      environment,
+    );
+  }
+
+  /*
+   * Legacy configuration retained so existing
+   * installations do not break immediately.
+   */
+  if (
+    provider ===
       "openai"
   ) {
-    const apiKey =
-      environment
-        .OPENAI_API_KEY
-        ?.trim();
-
-    if (
-      !apiKey
-    ) {
-      throw new Error(
-        "OPENAI_API_KEY is required when TONGYU_MODEL_PROVIDER=openai.",
-      );
-    }
-
-    const model =
-      environment
-        .TONGYU_OPENAI_MODEL
-        ?.trim() ||
-      DEFAULT_OPENAI_MODEL;
-
-    let reasoningEffort =
-      parseReasoningEffort(
-        environment
-          .TONGYU_OPENAI_REASONING_EFFORT,
-      );
-
-    /*
-     * GPT-5.6 supports reasoning=none.
-     * Keep the first real-agent integration stateless
-     * and simple; advanced persisted reasoning comes later.
-     */
-    if (
-      reasoningEffort ===
-        undefined &&
-      model.startsWith(
-        "gpt-5.6",
-      )
-    ) {
-      reasoningEffort =
-        "none";
-    }
-
-    return new OpenAIResponsesProvider({
-      apiKey,
-
-      model,
-
-      baseUrl:
-        environment
-          .TONGYU_OPENAI_BASE_URL,
-
-      reasoningEffort,
-    });
+    return createLegacyOpenAIProvider(
+      environment,
+    );
   }
 
   throw new Error(
