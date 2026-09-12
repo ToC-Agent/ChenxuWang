@@ -10,7 +10,8 @@ export {
   AgentModelStreamError,
   AgentToolDefinitionError,
   AgentTurnInputError,
-} from "./errors.js";
+
+  AgentTurnInterruptedError,} from "./errors.js";
 
 export type {
   AgentTurnEvent,

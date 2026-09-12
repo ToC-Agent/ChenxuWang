@@ -16,7 +16,8 @@ import {
   AgentModelStreamError,
   AgentTurn,
   AgentTurnInputError,
-} from "../agent/index.js";
+
+  AgentTurnInterruptedError,} from "../agent/index.js";
 
 import {
   FakeModelProvider,
@@ -188,6 +189,9 @@ export async function runStdioServer(
 
     promise:
       Promise<void>;
+
+    controller:
+      AbortController;
   }
 
   const activeTurns =
@@ -322,6 +326,14 @@ export async function runStdioServer(
     sessionId:
       string,
   ): void {
+    if (
+      error instanceof
+        AgentTurnInterruptedError
+    ) {
+      return;
+    }
+
+
     if (
       error instanceof
         Error
@@ -475,6 +487,8 @@ export async function runStdioServer(
       string,
     requestId:
       string,
+    signal:
+      AbortSignal,
   ): Promise<void> {
     try {
       for await (
@@ -482,6 +496,8 @@ export async function runStdioServer(
           agentTurn.stream({
             sessionId,
             requestId,
+
+            signal,
           })
       ) {
         writeAgentEvent(
@@ -580,7 +596,7 @@ export async function runStdioServer(
         capabilities: {
           sessions: true,
           streaming: true,
-          interrupt: false,
+          interrupt: true,
           tools: true,
         },
       });
@@ -825,6 +841,62 @@ export async function runStdioServer(
 
     if (
       message.type ===
+        "control.interrupt"
+    ) {
+      const activeTurn =
+        activeTurns.get(
+          message.sessionId,
+        );
+
+      if (
+        !activeTurn
+      ) {
+        writeEvent(
+          createRuntimeError(
+            "TURN_NOT_ACTIVE",
+            `Tongyu session has no active turn: ${message.sessionId}`,
+            message.id,
+            message.sessionId,
+          ),
+        );
+
+        continue;
+      }
+
+      activeTurn.controller
+        .abort();
+
+      permissionPolicy
+        .cancelSession(
+          message.sessionId,
+          "Tool execution was interrupted by the client.",
+        );
+
+      writeEvent({
+        id:
+          createEventId(),
+
+        type:
+          "control.interrupted",
+
+        timestamp:
+          Date.now(),
+
+        requestId:
+          message.id,
+
+        sessionId:
+          message.sessionId,
+
+        interruptedRequestId:
+          activeTurn.requestId,
+      });
+
+      continue;
+    }
+
+    if (
+      message.type ===
         "permission.response"
     ) {
       const accepted =
@@ -915,10 +987,14 @@ export async function runStdioServer(
           continue;
         }
 
+        const controller =
+          new AbortController();
+
         const turnPromise =
           runAgentTurn(
             message.sessionId,
             message.id,
+            controller.signal,
           );
 
         const active:
@@ -928,6 +1004,8 @@ export async function runStdioServer(
 
             promise:
               turnPromise,
+
+            controller,
           };
 
         activeTurns.set(
@@ -969,14 +1047,26 @@ export async function runStdioServer(
       continue;
     }
 
-    writeEvent(
-      createRuntimeError(
-        "NOT_IMPLEMENTED",
-        `Message type is not implemented yet: ${message.type}`,
-        message.id,
-        getSessionId(message),
-      ),
-    );
+    /*
+     * Exhaustive ClientMessage check.
+     *
+     * If a new protocol message type is added later
+     * without a server handler, TypeScript will fail
+     * here at compile time.
+     */
+    const exhaustiveMessage:
+      never =
+        message;
+
+    void exhaustiveMessage;
+  }
+
+  for (
+    const activeTurn
+    of activeTurns.values()
+  ) {
+    activeTurn.controller
+      .abort();
   }
 
   permissionPolicy.rejectAll(

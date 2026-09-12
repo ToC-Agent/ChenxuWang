@@ -72,10 +72,6 @@ export class InteractiveToolPermissionPolicy
   ): Promise<
     ToolPermissionDecision
   > {
-    /*
-     * Read-only workspace access remains
-     * automatically allowed.
-     */
     if (
       request.tool.permission ===
       "workspace.read"
@@ -196,6 +192,47 @@ export class InteractiveToolPermissionPolicy
     return true;
   }
 
+  cancelSession(
+    sessionId:
+      string,
+    reason:
+      string,
+  ): number {
+    let cancelled =
+      0;
+
+    for (
+      const [
+        permissionRequestId,
+        pending,
+      ]
+      of this.pending
+    ) {
+      if (
+        pending.sessionId !==
+          sessionId
+      ) {
+        continue;
+      }
+
+      this.pending.delete(
+        permissionRequestId,
+      );
+
+      pending.resolve({
+        allowed:
+          false,
+
+        reason,
+      });
+
+      cancelled +=
+        1;
+    }
+
+    return cancelled;
+  }
+
   rejectAll(
     reason:
       string,
@@ -204,7 +241,8 @@ export class InteractiveToolPermissionPolicy
       const [
         permissionRequestId,
         pending,
-      ] of this.pending
+      ]
+      of this.pending
     ) {
       this.pending.delete(
         permissionRequestId,

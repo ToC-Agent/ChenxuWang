@@ -213,6 +213,14 @@ export const shellExecTool:
       input,
       context,
     ) {
+      if (
+        context.signal?.aborted
+      ) {
+        throw new Error(
+          "Tongyu shell execution was aborted before start.",
+        );
+      }
+
       const timeoutMs =
         input.timeoutMs ??
         DEFAULT_TIMEOUT_MS;
@@ -245,6 +253,9 @@ export const shellExecTool:
           let outputLimitExceeded =
             false;
 
+          let aborted =
+            false;
+
           let terminating =
             false;
 
@@ -271,6 +282,15 @@ export const shellExecTool:
                     context.cwd,
                   ),
 
+                /*
+                 * On POSIX this creates a separate process
+                 * group so interrupt can terminate the shell
+                 * and descendants together.
+                 */
+                detached:
+                  process.platform !==
+                  "win32",
+
                 stdio: [
                   "ignore",
                   "pipe",
@@ -278,6 +298,36 @@ export const shellExecTool:
                 ],
               },
             );
+
+          const killTree =
+            (
+              signal:
+                NodeJS.Signals,
+            ) => {
+              if (
+                process.platform !==
+                  "win32" &&
+                child.pid !==
+                  undefined
+              ) {
+                try {
+                  process.kill(
+                    -child.pid,
+                    signal,
+                  );
+
+                  return;
+                } catch {
+                  /*
+                   * Fall back to the direct child.
+                   */
+                }
+              }
+
+              child.kill(
+                signal,
+              );
+            };
 
           const terminate =
             () => {
@@ -290,14 +340,14 @@ export const shellExecTool:
               terminating =
                 true;
 
-              child.kill(
+              killTree(
                 "SIGTERM",
               );
 
               forceKillTimer =
                 setTimeout(
                   () => {
-                    child.kill(
+                    killTree(
                       "SIGKILL",
                     );
                   },
@@ -305,6 +355,47 @@ export const shellExecTool:
                 );
 
               forceKillTimer.unref();
+            };
+
+          const abortHandler =
+            () => {
+              aborted =
+                true;
+
+              terminate();
+            };
+
+          if (
+            context.signal
+          ) {
+            if (
+              context.signal.aborted
+            ) {
+              abortHandler();
+            } else {
+              context.signal
+                .addEventListener(
+                  "abort",
+                  abortHandler,
+                  {
+                    once:
+                      true,
+                  },
+                );
+            }
+          }
+
+          const cleanup =
+            () => {
+              if (
+                context.signal
+              ) {
+                context.signal
+                  .removeEventListener(
+                    "abort",
+                    abortHandler,
+                  );
+              }
             };
 
           const timeoutTimer =
@@ -388,6 +479,8 @@ export const shellExecTool:
               settled =
                 true;
 
+              cleanup();
+
               clearTimeout(
                 timeoutTimer,
               );
@@ -421,6 +514,8 @@ export const shellExecTool:
               settled =
                 true;
 
+              cleanup();
+
               clearTimeout(
                 timeoutTimer,
               );
@@ -431,6 +526,18 @@ export const shellExecTool:
                 clearTimeout(
                   forceKillTimer,
                 );
+              }
+
+              if (
+                aborted
+              ) {
+                reject(
+                  new Error(
+                    "Tongyu shell execution was aborted.",
+                  ),
+                );
+
+                return;
               }
 
               resolve({

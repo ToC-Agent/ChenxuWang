@@ -21,7 +21,8 @@ import {
 import {
   AgentModelStreamError,
   AgentTurnInputError,
-} from "./errors.js";
+
+  AgentTurnInterruptedError,} from "./errors.js";
 
 import {
   sessionEventsToModelMessages,
@@ -84,6 +85,20 @@ function findUnresolvedToolCall(
   return undefined;
 }
 
+function throwIfTurnAborted(
+  input:
+    AgentTurnInput,
+): void {
+  if (
+    input.signal?.aborted
+  ) {
+    throw new AgentTurnInterruptedError(
+      input.sessionId,
+      input.requestId,
+    );
+  }
+}
+
 export class AgentTurn {
   constructor(
     private readonly provider:
@@ -105,6 +120,10 @@ export class AgentTurn {
   async *stream(
     input: AgentTurnInput,
   ): AsyncIterable<AgentTurnEvent> {
+    throwIfTurnAborted(
+      input,
+    );
+
     const snapshot =
       this.sessionManager.resume(
         input.sessionId,
@@ -222,6 +241,9 @@ export class AgentTurn {
       0;
 
     while (true) {
+      throwIfTurnAborted(
+        input,
+      );
       const roundSnapshot =
         this.sessionManager.resume(
           snapshot.session.id,
@@ -528,6 +550,11 @@ export class AgentTurn {
 
                 cwd:
                   roundSnapshot.session.cwd,
+
+
+
+                signal:
+                  input.signal,
               },
             );
 

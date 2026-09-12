@@ -41,3 +41,20 @@ export class AgentToolDefinitionError
       "AgentToolDefinitionError";
   }
 }
+
+export class AgentTurnInterruptedError
+  extends Error {
+  constructor(
+    sessionId:
+      string,
+    requestId:
+      string,
+  ) {
+    super(
+      `Tongyu agent turn was interrupted: request=${requestId}, session=${sessionId}`,
+    );
+
+    this.name =
+      "AgentTurnInterruptedError";
+  }
+}

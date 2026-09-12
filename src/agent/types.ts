@@ -1,6 +1,12 @@
 export interface AgentTurnInput {
-  sessionId: string;
-  requestId: string;
+  sessionId:
+    string;
+
+  requestId:
+    string;
+
+  signal?:
+    AbortSignal;
 }
 
 export type AgentTurnEvent =

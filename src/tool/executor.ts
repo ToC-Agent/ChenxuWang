@@ -56,6 +56,16 @@ function createErrorResult(
   };
 }
 
+function createAbortedResult(
+  call: ToolCall,
+): ToolResult {
+  return createErrorResult(
+    call,
+    "TOOL_EXECUTION_ABORTED",
+    `Tongyu tool execution was aborted: ${call.name}`,
+  );
+}
+
 export class ToolExecutor {
   constructor(
     private readonly registry:
@@ -129,6 +139,14 @@ export class ToolExecutor {
       );
     }
 
+    if (
+      context.signal?.aborted
+    ) {
+      return createAbortedResult(
+        call,
+      );
+    }
+
     const permissionDecision =
       await this.permissionPolicy
         .authorize({
@@ -136,6 +154,20 @@ export class ToolExecutor {
           call,
           context,
         });
+
+    /*
+     * Important:
+     *
+     * control.interrupt may have happened while
+     * authorize() was waiting for permission.response.
+     */
+    if (
+      context.signal?.aborted
+    ) {
+      return createAbortedResult(
+        call,
+      );
+    }
 
     if (
       !permissionDecision.allowed
@@ -148,11 +180,27 @@ export class ToolExecutor {
     }
 
     try {
+      if (
+        context.signal?.aborted
+      ) {
+        return createAbortedResult(
+          call,
+        );
+      }
+
       const result =
         await tool.execute(
           parsed.data,
           context,
         );
+
+      if (
+        context.signal?.aborted
+      ) {
+        return createAbortedResult(
+          call,
+        );
+      }
 
       return {
         toolCallId:
@@ -164,6 +212,14 @@ export class ToolExecutor {
           false,
       };
     } catch (error) {
+      if (
+        context.signal?.aborted
+      ) {
+        return createAbortedResult(
+          call,
+        );
+      }
+
       return createErrorResult(
         call,
         "TOOL_EXECUTION_FAILED",

@@ -31,6 +31,7 @@ export type ToolErrorCode =
   | "TOOL_NOT_FOUND"
   | "TOOL_INVALID_ARGUMENTS"
   | "TOOL_PERMISSION_DENIED"
+  | "TOOL_EXECUTION_ABORTED"
   | "TOOL_EXECUTION_FAILED";
 
 export interface ToolErrorResult {
@@ -45,6 +46,9 @@ export interface ToolExecutionContext {
   sessionId: string;
   requestId: string;
   cwd: string;
+
+  signal?:
+    AbortSignal;
 }
 
 export interface Tool<

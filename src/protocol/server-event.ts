@@ -246,6 +246,35 @@ const AssistantMessageEventSchema =
       z.string(),
   }).strict();
 
+const ControlInterruptedEventSchema =
+  z.object({
+    id:
+      z.string()
+        .min(1),
+
+    type:
+      z.literal(
+        "control.interrupted",
+      ),
+
+    timestamp:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    requestId:
+      z.string()
+        .min(1),
+
+    sessionId:
+      SessionIdSchema,
+
+    interruptedRequestId:
+      z.string()
+        .min(1),
+  }).strict();
+
+
 const PermissionRequestEventSchema =
   z.object({
     id:
@@ -425,6 +454,7 @@ export const ServerEventSchema =
       UserMessageRecordedEventSchema,
       AssistantDeltaEventSchema,
       AssistantMessageEventSchema,
+      ControlInterruptedEventSchema,
       PermissionRequestEventSchema,
       ToolCallEventSchema,
       ToolResultEventSchema,
