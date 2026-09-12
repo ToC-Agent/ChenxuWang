@@ -1,4 +1,8 @@
 import {
+  runChatClient,
+} from "./chat.js";
+
+import {
   TONGYU_VERSION,
 } from "../constants.js";
 
@@ -46,6 +50,10 @@ export async function runCli(
 
     case "doctor":
       runDoctor();
+      return;
+
+    case "chat":
+      await runChatClient();
       return;
 
     case "server":
