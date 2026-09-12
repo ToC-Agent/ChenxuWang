@@ -138,6 +138,12 @@ export async function runStdioServer(
       (
         request,
       ) => {
+        writeTurnStatus(
+          request.sessionId,
+          request.requestId,
+          "waiting_permission",
+        );
+
         writeEvent({
           id:
             createEventId(),
@@ -200,6 +206,94 @@ export async function runStdioServer(
       ActiveTurn
     >();
 
+
+  type TurnLifecycleStatus =
+    | "running"
+    | "waiting_permission"
+    | "executing_tool"
+    | "interrupted"
+    | "completed"
+    | "failed";
+
+  const turnStatuses =
+    new Map<
+      string,
+      TurnLifecycleStatus
+    >();
+
+  function turnStatusKey(
+    sessionId:
+      string,
+    requestId:
+      string,
+  ): string {
+    return `${sessionId}:${requestId}`;
+  }
+
+  function writeTurnStatus(
+    sessionId:
+      string,
+    requestId:
+      string,
+    status:
+      TurnLifecycleStatus,
+  ): void {
+    const key =
+      turnStatusKey(
+        sessionId,
+        requestId,
+      );
+
+    const current =
+      turnStatuses.get(
+        key,
+      );
+
+    if (
+      current ===
+      status
+    ) {
+      return;
+    }
+
+    /*
+     * Terminal states must never transition back to
+     * running/executing after late asynchronous events.
+     */
+    if (
+      current ===
+        "interrupted" ||
+      current ===
+        "completed" ||
+      current ===
+        "failed"
+    ) {
+      return;
+    }
+
+    turnStatuses.set(
+      key,
+      status,
+    );
+
+    writeEvent({
+      id:
+        createEventId(),
+
+      type:
+        "turn.status",
+
+      timestamp:
+        Date.now(),
+
+      requestId,
+
+      sessionId,
+
+      status,
+    });
+  }
+
   function writeAgentEvent(
     agentEvent:
       AgentTurnEvent,
@@ -261,6 +355,33 @@ export async function runStdioServer(
           agentEvent.arguments,
       });
 
+      /*
+       * workspace.read is automatically authorized,
+       * so tool.call transitions directly into execution.
+       *
+       * Unknown tools are deliberately ignored here;
+       * ToolExecutor will produce TOOL_NOT_FOUND.
+       */
+      try {
+        const tool =
+          toolRegistry.get(
+            agentEvent.name,
+          );
+
+        if (
+          tool.permission ===
+            "workspace.read"
+        ) {
+          writeTurnStatus(
+            agentEvent.sessionId,
+            agentEvent.requestId,
+            "executing_tool",
+          );
+        }
+      } catch {
+        // ToolExecutor owns unknown-tool handling.
+      }
+
       return;
     }
 
@@ -293,6 +414,12 @@ export async function runStdioServer(
         isError:
           agentEvent.isError,
       });
+
+      writeTurnStatus(
+        agentEvent.sessionId,
+        agentEvent.requestId,
+        "running",
+      );
 
       return;
     }
@@ -504,7 +631,32 @@ export async function runStdioServer(
           agentEvent,
         );
       }
+
+      writeTurnStatus(
+        sessionId,
+        requestId,
+        "completed",
+      );
     } catch (error) {
+      if (
+        error instanceof
+          AgentTurnInterruptedError
+      ) {
+        writeTurnStatus(
+          sessionId,
+          requestId,
+          "interrupted",
+        );
+
+        return;
+      }
+
+      writeTurnStatus(
+        sessionId,
+        requestId,
+        "failed",
+      );
+
       writeTurnError(
         error,
         requestId,
@@ -863,6 +1015,12 @@ export async function runStdioServer(
         continue;
       }
 
+      writeTurnStatus(
+        message.sessionId,
+        activeTurn.requestId,
+        "interrupted",
+      );
+
       activeTurn.controller
         .abort();
 
@@ -905,6 +1063,28 @@ export async function runStdioServer(
           message.permissionRequestId,
           message.decision,
         );
+
+      if (
+        accepted
+      ) {
+        const activeTurn =
+          activeTurns.get(
+            message.sessionId,
+          );
+
+        if (
+          activeTurn
+        ) {
+          writeTurnStatus(
+            message.sessionId,
+            activeTurn.requestId,
+            message.decision ===
+              "allow_once"
+              ? "executing_tool"
+              : "running",
+          );
+        }
+      }
 
       if (!accepted) {
         writeEvent(
@@ -990,6 +1170,12 @@ export async function runStdioServer(
         const controller =
           new AbortController();
 
+        writeTurnStatus(
+          message.sessionId,
+          message.id,
+          "running",
+        );
+
         const turnPromise =
           runAgentTurn(
             message.sessionId,
@@ -1026,6 +1212,13 @@ export async function runStdioServer(
             ) {
               activeTurns.delete(
                 message.sessionId,
+              );
+
+              turnStatuses.delete(
+                turnStatusKey(
+                  message.sessionId,
+                  message.id,
+                ),
               );
             }
           },

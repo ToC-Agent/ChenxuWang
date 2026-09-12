@@ -246,6 +246,41 @@ const AssistantMessageEventSchema =
       z.string(),
   }).strict();
 
+const TurnStatusEventSchema =
+  z.object({
+    id:
+      z.string()
+        .min(1),
+
+    type:
+      z.literal(
+        "turn.status",
+      ),
+
+    timestamp:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    requestId:
+      z.string()
+        .min(1),
+
+    sessionId:
+      SessionIdSchema,
+
+    status:
+      z.enum([
+        "running",
+        "waiting_permission",
+        "executing_tool",
+        "interrupted",
+        "completed",
+        "failed",
+      ]),
+  }).strict();
+
+
 const ControlInterruptedEventSchema =
   z.object({
     id:
@@ -454,6 +489,7 @@ export const ServerEventSchema =
       UserMessageRecordedEventSchema,
       AssistantDeltaEventSchema,
       AssistantMessageEventSchema,
+      TurnStatusEventSchema,
       ControlInterruptedEventSchema,
       PermissionRequestEventSchema,
       ToolCallEventSchema,
