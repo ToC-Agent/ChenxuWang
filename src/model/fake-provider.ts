@@ -5,6 +5,7 @@ import type {
 import type {
   ModelRequest,
   ModelStreamEvent,
+  ModelUserMessage,
 } from "./types.js";
 
 export interface FakeModelProviderOptions {

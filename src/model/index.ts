@@ -8,12 +8,17 @@ export type {
 } from "./provider.js";
 
 export type {
+  ModelAssistantTextMessage,
+  ModelAssistantToolCallMessage,
   ModelFinishReason,
   ModelJsonSchema,
   ModelMessage,
   ModelRequest,
   ModelRole,
   ModelStreamEvent,
+  ModelSystemMessage,
   ModelToolCall,
   ModelToolDefinition,
+  ModelToolResultMessage,
+  ModelUserMessage,
 } from "./types.js";
