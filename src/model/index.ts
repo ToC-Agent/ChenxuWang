@@ -22,3 +22,13 @@ export type {
   ModelToolResultMessage,
   ModelUserMessage,
 } from "./types.js";
+
+export {
+  OpenAIResponsesProvider,
+  type OpenAIResponsesProviderOptions,
+} from "./openai-responses-provider.js";
+
+export {
+  createModelProviderFromEnvironment,
+} from "./provider-factory.js";
+

@@ -299,8 +299,12 @@ export class AgentTurn {
       for await (
         const event of
           this.provider.stream(
-            modelRequest,
-          )
+          modelRequest,
+          {
+            signal:
+              input.signal,
+          },
+        )
       ) {
         if (completed) {
           throw new AgentModelStreamError(

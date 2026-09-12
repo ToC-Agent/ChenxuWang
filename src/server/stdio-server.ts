@@ -20,9 +20,10 @@ import {
   AgentTurnInterruptedError,} from "../agent/index.js";
 
 import {
-  FakeModelProvider,
+  
   type ModelProvider,
-} from "../model/index.js";
+
+  createModelProviderFromEnvironment,} from "../model/index.js";
 
 import {
   createInterface,
@@ -125,13 +126,7 @@ export async function runStdioServer(
 
   const modelProvider =
     options.modelProvider ??
-    new FakeModelProvider({
-      prefix:
-        "Tongyu: ",
-
-      chunkSize:
-        4,
-    });
+    createModelProviderFromEnvironment();
 
   const permissionPolicy =
     new InteractiveToolPermissionPolicy(

@@ -3,10 +3,21 @@ import type {
   ModelStreamEvent,
 } from "./types.js";
 
+export interface ModelStreamOptions {
+  signal?:
+    AbortSignal;
+}
+
 export interface ModelProvider {
-  readonly id: string;
+  readonly id:
+    string;
 
   stream(
-    request: ModelRequest,
-  ): AsyncIterable<ModelStreamEvent>;
+    request:
+      ModelRequest,
+    options?:
+      ModelStreamOptions,
+  ): AsyncIterable<
+    ModelStreamEvent
+  >;
 }
