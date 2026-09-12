@@ -1,4 +1,8 @@
 import {
+  runSessionsClient,
+} from "./sessions.js";
+
+import {
   runChatClient,
 } from "./chat.js";
 
@@ -53,7 +57,13 @@ export async function runCli(
       return;
 
     case "chat":
-      await runChatClient();
+      await runChatClient(
+        args.slice(1),
+      );
+      return;
+
+    case "sessions":
+      await runSessionsClient();
       return;
 
     case "server":

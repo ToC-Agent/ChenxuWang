@@ -62,7 +62,8 @@ function printHelp(): void {
       "/stop   Stop the active turn",
       "/allow  Approve the pending tool permission once",
       "/deny   Deny the pending tool permission",
-      "/exit   Close the session and exit",
+      "/exit   Disconnect and preserve the session",
+      "/close  Permanently close the session and exit",
       "",
     ].join(
       "\n",
@@ -70,7 +71,45 @@ function printHelp(): void {
   );
 }
 
-export async function runChatClient(): Promise<void> {
+function parseResumeSessionId(
+  args:
+    readonly string[],
+): string | undefined {
+  if (
+    args.length ===
+      0
+  ) {
+    return undefined;
+  }
+
+  if (
+    args.length ===
+      2 &&
+    (
+      args[0] ===
+        "--resume" ||
+      args[0] ===
+        "-r"
+    ) &&
+    args[1]
+  ) {
+    return args[1];
+  }
+
+  throw new Error(
+    "Usage: tongyu chat [--resume <sessionId>]",
+  );
+}
+
+export async function runChatClient(
+  args:
+    readonly string[] = [],
+): Promise<void> {
+  const resumeSessionId =
+    parseResumeSessionId(
+      args,
+    );
+
   const cliEntry =
     process.argv[1];
 
@@ -142,6 +181,10 @@ export async function runChatClient(): Promise<void> {
   );
 
   let sessionId:
+    string |
+    undefined;
+
+  let resumedSessionStatus:
     string |
     undefined;
 
@@ -316,18 +359,186 @@ export async function runChatClient(): Promise<void> {
               type ===
                 "control.initialized"
             ) {
-              send({
-                id:
-                  createRequestId(
-                    "req-chat-create",
-                  ),
+              if (
+                resumeSessionId
+              ) {
+                send({
+                  id:
+                    createRequestId(
+                      "req-chat-resume",
+                    ),
 
-                type:
-                  "session.create",
+                  type:
+                    "session.resume",
 
-                cwd:
-                  process.cwd(),
-              });
+                  sessionId:
+                    resumeSessionId,
+                });
+              } else {
+                send({
+                  id:
+                    createRequestId(
+                      "req-chat-create",
+                    ),
+
+                  type:
+                    "session.create",
+
+                  cwd:
+                    process.cwd(),
+                });
+              }
+
+              continue;
+            }
+
+            if (
+              type ===
+                "session.resumed"
+            ) {
+              sessionId =
+                readString(
+                  event,
+                  "sessionId",
+                );
+
+              resumedSessionStatus =
+                readString(
+                  event,
+                  "status",
+                );
+
+              const cwd =
+                readString(
+                  event,
+                  "cwd",
+                ) ??
+                "unknown";
+
+              if (
+                !sessionId
+              ) {
+                throw new Error(
+                  "session.resumed did not contain sessionId.",
+                );
+              }
+
+              process.stdout.write(
+                `\nTongyu session resumed: ${sessionId}\n`,
+              );
+
+              process.stdout.write(
+                `Workspace: ${cwd}\n`,
+              );
+
+              process.stdout.write(
+                `Status: ${resumedSessionStatus ?? "unknown"}\n`,
+              );
+
+              process.stdout.write(
+                "\nHistory:\n",
+              );
+
+              continue;
+            }
+
+            if (
+              type ===
+                "session.history.event"
+            ) {
+              const historyValue =
+                event.event;
+
+              if (
+                typeof historyValue !==
+                  "object" ||
+                historyValue ===
+                  null ||
+                Array.isArray(
+                  historyValue,
+                )
+              ) {
+                continue;
+              }
+
+              const historyEvent =
+                historyValue as
+                  JsonObject;
+
+              const historyType =
+                readString(
+                  historyEvent,
+                  "type",
+                );
+
+              const content =
+                readString(
+                  historyEvent,
+                  "content",
+                );
+
+              if (
+                historyType ===
+                  "user.message" &&
+                content !==
+                  undefined
+              ) {
+                process.stdout.write(
+                  `\nuser> ${content}\n`,
+                );
+              } else if (
+                historyType ===
+                  "assistant.message" &&
+                content !==
+                  undefined
+              ) {
+                process.stdout.write(
+                  `\nassistant> ${content}\n`,
+                );
+              }
+
+              continue;
+            }
+
+            if (
+              type ===
+                "session.history.end"
+            ) {
+              const eventCount =
+                typeof event.eventCount ===
+                  "number"
+                  ? event.eventCount
+                  : 0;
+
+              process.stdout.write(
+                `\nHistory loaded: ${eventCount} events.\n`,
+              );
+
+              if (
+                resumedSessionStatus !==
+                  "active"
+              ) {
+                process.stdout.write(
+                  `Session is ${resumedSessionStatus ?? "not active"} and cannot accept new messages.\n`,
+                );
+
+                closing =
+                  true;
+
+                readyResolve?.();
+
+                input.close();
+
+                child.stdin.end();
+
+                continue;
+              }
+
+              process.stdout.write(
+                "Type /help for commands.\n\n",
+              );
+
+              readyResolve?.();
 
               continue;
             }
@@ -689,6 +900,24 @@ export async function runChatClient(): Promise<void> {
                 `\n[${code}] ${message}\n`,
               );
 
+              if (
+                resumeSessionId &&
+                !sessionId
+              ) {
+                closing =
+                  true;
+
+                readyReject?.(
+                  new Error(
+                    `[${code}] ${message}`,
+                  ),
+                );
+
+                input.close();
+
+                child.stdin.end();
+              }
+
               continue;
             }
 
@@ -799,6 +1028,13 @@ export async function runChatClient(): Promise<void> {
       ) {
         command =
           "/stop";
+      } else if (
+        !busy &&
+        rawInput ===
+          "close"
+      ) {
+        command =
+          "/close";
       } else if (
         !busy &&
         (
@@ -916,10 +1152,48 @@ export async function runChatClient(): Promise<void> {
           "/exit"
       ) {
         if (
+          busy
+        ) {
+          process.stdout.write(
+            "A turn is still active. Use /stop first, then /exit.\n",
+          );
+
+          continue;
+        }
+
+        closing =
+          true;
+
+        if (
+          sessionId
+        ) {
+          process.stdout.write(
+            `Session preserved: ${sessionId}\n`,
+          );
+
+          process.stdout.write(
+            `Resume with: tongyu chat --resume ${sessionId}\n`,
+          );
+        }
+
+        input.close();
+
+        child.stdin.end();
+
+        break;
+      }
+
+      if (
+        command ===
+          "/close"
+      ) {
+        if (
           !sessionId
         ) {
           closing =
             true;
+
+          input.close();
 
           child.stdin.end();
 
@@ -930,7 +1204,7 @@ export async function runChatClient(): Promise<void> {
           busy
         ) {
           process.stdout.write(
-            "A turn is still active. Use /stop first, then /exit.\n",
+            "A turn is still active. Use /stop first, then /close.\n",
           );
 
           continue;

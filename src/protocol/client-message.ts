@@ -144,6 +144,17 @@ const PermissionResponseMessageSchema =
   }).strict();
 
 
+const SessionListMessageSchema =
+  z.object({
+    id:
+      z.string().min(1),
+
+    type:
+      z.literal(
+        "session.list",
+      ),
+  }).strict();
+
 export const ClientMessageSchema =
   z.discriminatedUnion(
     "type",
@@ -151,6 +162,7 @@ export const ClientMessageSchema =
       ControlInitializeMessageSchema,
       SessionCreateMessageSchema,
       SessionResumeMessageSchema,
+      SessionListMessageSchema,
       SessionCloseMessageSchema,
       UserMessageSchema,
       PermissionResponseMessageSchema,

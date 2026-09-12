@@ -973,6 +973,92 @@ export async function runStdioServer(
 
     if (
       message.type ===
+        "session.list"
+    ) {
+      try {
+        const sessions =
+          sessionManager.list();
+
+        for (
+          const session
+          of sessions
+        ) {
+          writeEvent({
+            id:
+              createEventId(),
+
+            type:
+              "session.list.item",
+
+            timestamp:
+              Date.now(),
+
+            requestId:
+              message.id,
+
+            sessionId:
+              session.id,
+
+            cwd:
+              session.cwd,
+
+            status:
+              session.status,
+
+            createdAt:
+              session.createdAt,
+
+            updatedAt:
+              session.updatedAt,
+          });
+        }
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "session.list.end",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          count:
+            sessions.length,
+        });
+      } catch (error) {
+        const code =
+          error instanceof
+            SessionCorruptError
+            ? "SESSION_CORRUPT"
+            : error instanceof
+                SessionNotFoundError
+              ? "SESSION_NOT_FOUND"
+              : "INTERNAL_ERROR";
+
+        const messageText =
+          error instanceof
+            Error
+            ? error.message
+            : "Unexpected session list error.";
+
+        writeEvent(
+          createRuntimeError(
+            code,
+            messageText,
+            message.id,
+          ),
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
       "session.resume"
     ) {
       try {

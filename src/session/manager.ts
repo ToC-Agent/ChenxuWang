@@ -1,4 +1,7 @@
 import {
+  readdirSync,
+} from "node:fs";
+import {
   randomUUID,
 } from "node:crypto";
 
@@ -30,6 +33,10 @@ import {
   createSessionEventId,
   type SessionEvent,
 } from "./events.js";
+
+import {
+  SessionIdSchema,
+} from "./schema.js";
 
 import {
   SessionStore,
@@ -93,6 +100,64 @@ export class SessionManager {
     );
 
     return session;
+  }
+
+  list(): Session[] {
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const sessions:
+      Session[] = [];
+
+    for (
+      const entry
+      of readdirSync(
+        paths.sessions,
+        {
+          withFileTypes:
+            true,
+        },
+      )
+    ) {
+      if (
+        !entry.isDirectory()
+      ) {
+        continue;
+      }
+
+      const result =
+        SessionIdSchema.safeParse(
+          entry.name,
+        );
+
+      if (
+        !result.success
+      ) {
+        continue;
+      }
+
+      sessions.push(
+        store.load(
+          result.data,
+        ),
+      );
+    }
+
+    sessions.sort(
+      (
+        left,
+        right,
+      ) =>
+        right.createdAt -
+          left.createdAt,
+    );
+
+    return sessions;
   }
 
   load(

@@ -482,6 +482,73 @@ const SessionEndEventSchema =
       z.boolean(),
   }).strict();
 
+const SessionListItemEventSchema =
+  z.object({
+    id:
+      z.string().min(1),
+
+    type:
+      z.literal(
+        "session.list.item",
+      ),
+
+    timestamp:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    requestId:
+      z.string().min(1),
+
+    sessionId:
+      SessionIdSchema,
+
+    cwd:
+      z.string().min(1),
+
+    status:
+      z.enum([
+        "active",
+        "completed",
+        "interrupted",
+        "error",
+      ]),
+
+    createdAt:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    updatedAt:
+      z.number()
+        .int()
+        .nonnegative(),
+  }).strict();
+
+const SessionListEndEventSchema =
+  z.object({
+    id:
+      z.string().min(1),
+
+    type:
+      z.literal(
+        "session.list.end",
+      ),
+
+    timestamp:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    requestId:
+      z.string().min(1),
+
+    count:
+      z.number()
+        .int()
+        .nonnegative(),
+  }).strict();
+
 export const ServerEventSchema =
   z.discriminatedUnion(
     "type",
@@ -491,6 +558,8 @@ export const ServerEventSchema =
       SessionResumedEventSchema,
       SessionHistoryEventSchema,
       SessionHistoryEndEventSchema,
+      SessionListItemEventSchema,
+      SessionListEndEventSchema,
       UserMessageRecordedEventSchema,
       AssistantDeltaEventSchema,
       AssistantMessageEventSchema,
