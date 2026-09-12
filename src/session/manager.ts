@@ -3,6 +3,10 @@ import {
 } from "node:crypto";
 
 import {
+  isDeepStrictEqual,
+} from "node:util";
+
+import {
   createRuntimeContext,
 } from "../runtime/context.js";
 
@@ -13,6 +17,9 @@ import {
 import {
   RequestIdConflictError,
   SessionNotActiveError,
+  ToolCallIdConflictError,
+  ToolResultConflictError,
+  ToolResultWithoutCallError,
 } from "./errors.js";
 
 import {
@@ -328,6 +335,269 @@ export class SessionManager {
       requestId,
 
       content,
+    };
+
+    eventStore.append(
+      event,
+    );
+
+    return {
+      event,
+
+      replayed:
+        false,
+    };
+  }
+
+
+  recordToolCall(
+    sessionId: string,
+    requestId: string,
+    toolCallId: string,
+    name: string,
+    argumentsValue:
+      Record<string, unknown>,
+  ): {
+    event: Extract<
+      SessionEvent,
+      {
+        type: "tool.call";
+      }
+    >;
+    replayed: boolean;
+  } {
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const session =
+      store.load(
+        sessionId,
+      );
+
+    const eventStore =
+      new SessionEventStore(
+        paths.sessions,
+      );
+
+    const existingEvent =
+      eventStore
+        .findToolCallByToolCallId(
+          session.id,
+          toolCallId,
+        );
+
+    if (existingEvent) {
+      if (
+        existingEvent.requestId !==
+          requestId ||
+        existingEvent.name !==
+          name ||
+        !isDeepStrictEqual(
+          existingEvent.arguments,
+          argumentsValue,
+        )
+      ) {
+        throw new ToolCallIdConflictError(
+          session.id,
+          toolCallId,
+        );
+      }
+
+      return {
+        event:
+          existingEvent,
+
+        replayed:
+          true,
+      };
+    }
+
+    if (
+      session.status !==
+        "active"
+    ) {
+      throw new SessionNotActiveError(
+        session.id,
+        session.status,
+      );
+    }
+
+    const event: Extract<
+      SessionEvent,
+      {
+        type: "tool.call";
+      }
+    > = {
+      id:
+        createSessionEventId(),
+
+      type:
+        "tool.call",
+
+      timestamp:
+        Date.now(),
+
+      sessionId:
+        session.id,
+
+      requestId,
+
+      toolCallId,
+
+      name,
+
+      arguments:
+        argumentsValue,
+    };
+
+    eventStore.append(
+      event,
+    );
+
+    return {
+      event,
+
+      replayed:
+        false,
+    };
+  }
+
+
+  recordToolResult(
+    sessionId: string,
+    requestId: string,
+    toolCallId: string,
+    resultValue: unknown,
+    isError?: boolean,
+  ): {
+    event: Extract<
+      SessionEvent,
+      {
+        type: "tool.result";
+      }
+    >;
+    replayed: boolean;
+  } {
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const session =
+      store.load(
+        sessionId,
+      );
+
+    const eventStore =
+      new SessionEventStore(
+        paths.sessions,
+      );
+
+    const toolCall =
+      eventStore
+        .findToolCallByToolCallId(
+          session.id,
+          toolCallId,
+        );
+
+    if (!toolCall) {
+      throw new ToolResultWithoutCallError(
+        session.id,
+        toolCallId,
+      );
+    }
+
+    if (
+      toolCall.requestId !==
+        requestId
+    ) {
+      throw new ToolResultConflictError(
+        session.id,
+        toolCallId,
+      );
+    }
+
+    const existingEvent =
+      eventStore
+        .findToolResultByToolCallId(
+          session.id,
+          toolCallId,
+        );
+
+    if (existingEvent) {
+      if (
+        existingEvent.requestId !==
+          requestId ||
+        !isDeepStrictEqual(
+          existingEvent.result,
+          resultValue,
+        ) ||
+        (existingEvent.isError ??
+          false) !==
+          (isError ??
+            false)
+      ) {
+        throw new ToolResultConflictError(
+          session.id,
+          toolCallId,
+        );
+      }
+
+      return {
+        event:
+          existingEvent,
+
+        replayed:
+          true,
+      };
+    }
+
+    if (
+      session.status !==
+        "active"
+    ) {
+      throw new SessionNotActiveError(
+        session.id,
+        session.status,
+      );
+    }
+
+    const event: Extract<
+      SessionEvent,
+      {
+        type: "tool.result";
+      }
+    > = {
+      id:
+        createSessionEventId(),
+
+      type:
+        "tool.result",
+
+      timestamp:
+        Date.now(),
+
+      sessionId:
+        session.id,
+
+      requestId,
+
+      toolCallId,
+
+      result:
+        resultValue,
+
+      isError:
+        isError ??
+        false,
     };
 
     eventStore.append(

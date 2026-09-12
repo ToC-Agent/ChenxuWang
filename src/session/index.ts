@@ -33,6 +33,9 @@ export {
   SessionEventCorruptError,
   SessionNotActiveError,
   SessionNotFoundError,
+  ToolCallIdConflictError,
+  ToolResultConflictError,
+  ToolResultWithoutCallError,
 } from "./errors.js";
 
 export type {

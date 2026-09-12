@@ -303,4 +303,77 @@ export class SessionEventStore {
     return undefined;
   }
 
+
+  findToolCallByToolCallId(
+    sessionId: string,
+    toolCallId: string,
+  ): Extract<
+    SessionEvent,
+    {
+      type: "tool.call";
+    }
+  > | undefined {
+    const events =
+      this.readAll(
+        sessionId,
+      );
+
+    for (
+      let index =
+        events.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const event =
+        events[index];
+
+      if (
+        event.type ===
+          "tool.call" &&
+        event.toolCallId ===
+          toolCallId
+      ) {
+        return event;
+      }
+    }
+
+    return undefined;
+  }
+
+  findToolResultByToolCallId(
+    sessionId: string,
+    toolCallId: string,
+  ): Extract<
+    SessionEvent,
+    {
+      type: "tool.result";
+    }
+  > | undefined {
+    const events =
+      this.readAll(
+        sessionId,
+      );
+
+    for (
+      let index =
+        events.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const event =
+        events[index];
+
+      if (
+        event.type ===
+          "tool.result" &&
+        event.toolCallId ===
+          toolCallId
+      ) {
+        return event;
+      }
+    }
+
+    return undefined;
+  }
+
 }

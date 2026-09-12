@@ -79,3 +79,51 @@ export class RequestIdConflictError extends Error {
       "RequestIdConflictError";
   }
 }
+
+export class ToolCallIdConflictError
+  extends Error {
+
+  constructor(
+    sessionId: string,
+    toolCallId: string,
+  ) {
+    super(
+      `Tongyu tool call id conflict: ${toolCallId}, session=${sessionId}`,
+    );
+
+    this.name =
+      "ToolCallIdConflictError";
+  }
+}
+
+export class ToolResultConflictError
+  extends Error {
+
+  constructor(
+    sessionId: string,
+    toolCallId: string,
+  ) {
+    super(
+      `Tongyu tool result conflict: ${toolCallId}, session=${sessionId}`,
+    );
+
+    this.name =
+      "ToolResultConflictError";
+  }
+}
+
+export class ToolResultWithoutCallError
+  extends Error {
+
+  constructor(
+    sessionId: string,
+    toolCallId: string,
+  ) {
+    super(
+      `Tongyu tool result has no matching tool call: ${toolCallId}, session=${sessionId}`,
+    );
+
+    this.name =
+      "ToolResultWithoutCallError";
+  }
+}
