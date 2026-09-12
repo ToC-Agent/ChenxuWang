@@ -9,8 +9,11 @@ export type {
 
 export type {
   ModelFinishReason,
+  ModelJsonSchema,
   ModelMessage,
   ModelRequest,
   ModelRole,
   ModelStreamEvent,
+  ModelToolCall,
+  ModelToolDefinition,
 } from "./types.js";

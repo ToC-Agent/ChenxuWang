@@ -25,3 +25,19 @@ export class AgentModelStreamError extends Error {
       "AgentModelStreamError";
   }
 }
+
+export class AgentToolDefinitionError
+  extends Error {
+
+  constructor(
+    toolName: string,
+    message: string,
+  ) {
+    super(
+      `Failed to create model definition for Tongyu tool ${toolName}: ${message}`,
+    );
+
+    this.name =
+      "AgentToolDefinitionError";
+  }
+}

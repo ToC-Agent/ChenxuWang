@@ -8,6 +8,7 @@ export {
 
 export {
   AgentModelStreamError,
+  AgentToolDefinitionError,
   AgentTurnInputError,
 } from "./errors.js";
 
@@ -15,3 +16,7 @@ export type {
   AgentTurnEvent,
   AgentTurnInput,
 } from "./types.js";
+
+export {
+  toolsToModelDefinitions,
+} from "./tool-definitions.js";

@@ -1,6 +1,7 @@
 import type {
   ModelFinishReason,
   ModelProvider,
+  ModelRequest,
 } from "../model/index.js";
 
 import {
@@ -10,6 +11,10 @@ import {
 } from "../session/index.js";
 
 import {
+  ToolRegistry,
+} from "../tool/index.js";
+
+import {
   AgentModelStreamError,
   AgentTurnInputError,
 } from "./errors.js";
@@ -17,6 +22,10 @@ import {
 import {
   sessionEventsToModelMessages,
 } from "./history.js";
+
+import {
+  toolsToModelDefinitions,
+} from "./tool-definitions.js";
 
 import type {
   AgentTurnEvent,
@@ -31,6 +40,10 @@ export class AgentTurn {
     private readonly sessionManager:
       SessionManager =
         new SessionManager(),
+
+    private readonly toolRegistry:
+      ToolRegistry =
+        new ToolRegistry(),
   ) {}
 
   async *stream(
@@ -143,6 +156,24 @@ export class AgentTurn {
         snapshot.events,
       );
 
+    const toolDefinitions =
+      toolsToModelDefinitions(
+        this.toolRegistry.list(),
+      );
+
+    const modelRequest:
+      ModelRequest =
+        toolDefinitions.length >
+        0
+          ? {
+              messages,
+              tools:
+                toolDefinitions,
+            }
+          : {
+              messages,
+            };
+
     let content =
       "";
 
@@ -155,9 +186,9 @@ export class AgentTurn {
 
     for await (
       const event of
-      this.provider.stream({
-        messages,
-      })
+      this.provider.stream(
+        modelRequest,
+      )
     ) {
       if (completed) {
         throw new AgentModelStreamError(
@@ -187,6 +218,15 @@ export class AgentTurn {
         };
 
         continue;
+      }
+
+      if (
+        event.type ===
+          "tool.call"
+      ) {
+        throw new AgentModelStreamError(
+          "tool calls are not implemented in AgentTurn yet",
+        );
       }
 
       completed =
