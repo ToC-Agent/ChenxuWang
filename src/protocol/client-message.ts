@@ -1,4 +1,8 @@
 import {
+  SessionIdSchema,
+} from "../session/schema.js";
+
+import {
   z,
 } from "zod";
 
@@ -98,6 +102,32 @@ const ControlInterruptMessageSchema =
       z.string().min(1),
   }).strict();
 
+const PermissionResponseMessageSchema =
+  z.object({
+    id:
+      z.string()
+        .min(1),
+
+    type:
+      z.literal(
+        "permission.response",
+      ),
+
+    sessionId:
+      SessionIdSchema,
+
+    permissionRequestId:
+      z.string()
+        .min(1),
+
+    decision:
+      z.enum([
+        "allow_once",
+        "deny",
+      ]),
+  }).strict();
+
+
 export const ClientMessageSchema =
   z.discriminatedUnion(
     "type",
@@ -106,6 +136,7 @@ export const ClientMessageSchema =
       SessionCreateMessageSchema,
       SessionResumeMessageSchema,
       UserMessageSchema,
+      PermissionResponseMessageSchema,
       ControlInterruptMessageSchema,
     ],
   );

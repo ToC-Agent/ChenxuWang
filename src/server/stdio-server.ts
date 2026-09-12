@@ -1,4 +1,10 @@
 import {
+  InteractiveToolPermissionPolicy,
+} from "./interactive-permission-policy.js";
+import type {
+  AgentTurnEvent,
+} from "../agent/types.js";
+import {
   createDefaultToolRegistry,
 } from "../tool/index.js";
 
@@ -126,15 +132,371 @@ export async function runStdioServer(
         4,
     });
 
+  const permissionPolicy =
+    new InteractiveToolPermissionPolicy(
+      (
+        request,
+      ) => {
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "permission.request",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            request.requestId,
+
+          sessionId:
+            request.sessionId,
+
+          permissionRequestId:
+            request.permissionRequestId,
+
+          toolCallId:
+            request.toolCallId,
+
+          toolName:
+            request.toolName,
+
+          permission:
+            request.permission,
+
+          arguments:
+            request.arguments,
+        });
+      },
+    );
+
   const agentTurn =
     new AgentTurn(
       modelProvider,
       sessionManager,
       toolRegistry,
+      permissionPolicy,
     );
 
   let initialized =
     false;
+
+  interface ActiveTurn {
+    requestId:
+      string;
+
+    promise:
+      Promise<void>;
+  }
+
+  const activeTurns =
+    new Map<
+      string,
+      ActiveTurn
+    >();
+
+  function writeAgentEvent(
+    agentEvent:
+      AgentTurnEvent,
+  ): void {
+    if (
+      agentEvent.type ===
+      "assistant.delta"
+    ) {
+      writeEvent({
+        id:
+          createEventId(),
+
+        type:
+          "assistant.delta",
+
+        timestamp:
+          Date.now(),
+
+        requestId:
+          agentEvent.requestId,
+
+        sessionId:
+          agentEvent.sessionId,
+
+        text:
+          agentEvent.text,
+      });
+
+      return;
+    }
+
+    if (
+      agentEvent.type ===
+      "tool.call"
+    ) {
+      writeEvent({
+        id:
+          createEventId(),
+
+        type:
+          "tool.call",
+
+        timestamp:
+          Date.now(),
+
+        requestId:
+          agentEvent.requestId,
+
+        sessionId:
+          agentEvent.sessionId,
+
+        toolCallId:
+          agentEvent.toolCallId,
+
+        name:
+          agentEvent.name,
+
+        arguments:
+          agentEvent.arguments,
+      });
+
+      return;
+    }
+
+    if (
+      agentEvent.type ===
+      "tool.result"
+    ) {
+      writeEvent({
+        id:
+          createEventId(),
+
+        type:
+          "tool.result",
+
+        timestamp:
+          Date.now(),
+
+        requestId:
+          agentEvent.requestId,
+
+        sessionId:
+          agentEvent.sessionId,
+
+        toolCallId:
+          agentEvent.toolCallId,
+
+        result:
+          agentEvent.result,
+
+        isError:
+          agentEvent.isError,
+      });
+
+      return;
+    }
+
+    writeEvent({
+      id:
+        createEventId(),
+
+      type:
+        "assistant.message",
+
+      timestamp:
+        Date.now(),
+
+      requestId:
+        agentEvent.requestId,
+
+      sessionId:
+        agentEvent.sessionId,
+
+      content:
+        agentEvent.content,
+    });
+  }
+
+  function writeTurnError(
+    error:
+      unknown,
+    requestId:
+      string,
+    sessionId:
+      string,
+  ): void {
+    if (
+      error instanceof
+        Error
+    ) {
+      switch (
+        error.name
+      ) {
+        case "InvalidSessionIdError":
+          writeEvent(
+            createRuntimeError(
+              "INVALID_SESSION_ID",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "SessionNotFoundError":
+          writeEvent(
+            createRuntimeError(
+              "SESSION_NOT_FOUND",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "SessionCorruptError":
+          writeEvent(
+            createRuntimeError(
+              "SESSION_CORRUPT",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "SessionEventCorruptError":
+          writeEvent(
+            createRuntimeError(
+              "SESSION_EVENT_CORRUPT",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "SessionNotActiveError":
+          writeEvent(
+            createRuntimeError(
+              "SESSION_NOT_ACTIVE",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "RequestIdConflictError":
+          writeEvent(
+            createRuntimeError(
+              "REQUEST_ID_CONFLICT",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "ToolCallIdConflictError":
+          writeEvent(
+            createRuntimeError(
+              "TOOL_CALL_ID_CONFLICT",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "ToolResultConflictError":
+          writeEvent(
+            createRuntimeError(
+              "TOOL_RESULT_CONFLICT",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "ToolResultWithoutCallError":
+          writeEvent(
+            createRuntimeError(
+              "TOOL_RESULT_WITHOUT_CALL",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "AgentTurnInputError":
+          writeEvent(
+            createRuntimeError(
+              "AGENT_TURN_INPUT_ERROR",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+
+        case "AgentModelStreamError":
+          writeEvent(
+            createRuntimeError(
+              "AGENT_MODEL_STREAM_ERROR",
+              error.message,
+              requestId,
+              sessionId,
+            ),
+          );
+          return;
+      }
+
+      writeLog(
+        `agent turn failed: ${error.stack ?? error.message}`,
+      );
+    } else {
+      writeLog(
+        `agent turn failed: ${String(error)}`,
+      );
+    }
+
+    writeEvent(
+      createRuntimeError(
+        "INTERNAL_ERROR",
+        "Unexpected Tongyu agent turn error.",
+        requestId,
+        sessionId,
+      ),
+    );
+  }
+
+  async function runAgentTurn(
+    sessionId:
+      string,
+    requestId:
+      string,
+  ): Promise<void> {
+    try {
+      for await (
+        const agentEvent of
+          agentTurn.stream({
+            sessionId,
+            requestId,
+          })
+      ) {
+        writeAgentEvent(
+          agentEvent,
+        );
+      }
+    } catch (error) {
+      writeTurnError(
+        error,
+        requestId,
+        sessionId,
+      );
+    }
+  }
+
 
   const readline =
     createInterface({
@@ -463,17 +825,66 @@ export async function runStdioServer(
 
     if (
       message.type ===
-      "user.message"
+        "permission.response"
     ) {
+      const accepted =
+        permissionPolicy.respond(
+          message.sessionId,
+          message.permissionRequestId,
+          message.decision,
+        );
+
+      if (!accepted) {
+        writeEvent(
+          createRuntimeError(
+            "PERMISSION_REQUEST_NOT_FOUND",
+            `Tongyu permission request was not found: ${message.permissionRequestId}`,
+            message.id,
+            message.sessionId,
+          ),
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
+        "user.message"
+    ) {
+      const activeTurn =
+        activeTurns.get(
+          message.sessionId,
+        );
+
+      if (
+        activeTurn &&
+        activeTurn.requestId !==
+          message.id
+      ) {
+        writeEvent(
+          createRuntimeError(
+            "SESSION_BUSY",
+            `Tongyu session already has an active turn: ${message.sessionId}`,
+            message.id,
+            message.sessionId,
+          ),
+        );
+
+        continue;
+      }
+
       try {
         const {
-          event: sessionEvent,
+          event:
+            sessionEvent,
         } =
-          sessionManager.recordUserMessage(
-            message.sessionId,
-            message.id,
-            message.content,
-          );
+          sessionManager
+            .recordUserMessage(
+              message.sessionId,
+              message.id,
+              message.content,
+            );
 
         writeEvent({
           id:
@@ -495,268 +906,66 @@ export async function runStdioServer(
             sessionEvent.id,
         });
 
-        for await (
-          const agentEvent of
-          agentTurn.stream({
-            sessionId:
-              message.sessionId,
-
-            requestId:
-              message.id,
-          })
-        ) {
-          if (
-            agentEvent.type ===
-            "assistant.delta"
-          ) {
-            writeEvent({
-              id:
-                createEventId(),
-
-              type:
-                "assistant.delta",
-
-              timestamp:
-                Date.now(),
-
-              requestId:
-                agentEvent.requestId,
-
-              sessionId:
-                agentEvent.sessionId,
-
-              text:
-                agentEvent.text,
-            });
-
-            continue;
-          }
-
-          if (
-            agentEvent.type ===
-              "tool.call"
-          ) {
-            writeEvent({
-              id:
-                createEventId(),
-
-              type:
-                "tool.call",
-
-              timestamp:
-                Date.now(),
-
-              requestId:
-                agentEvent.requestId,
-
-              sessionId:
-                agentEvent.sessionId,
-
-              toolCallId:
-                agentEvent.toolCallId,
-
-              name:
-                agentEvent.name,
-
-              arguments:
-                agentEvent.arguments,
-            });
-
-            continue;
-          }
-
-          if (
-            agentEvent.type ===
-              "tool.result"
-          ) {
-            writeEvent({
-              id:
-                createEventId(),
-
-              type:
-                "tool.result",
-
-              timestamp:
-                Date.now(),
-
-              requestId:
-                agentEvent.requestId,
-
-              sessionId:
-                agentEvent.sessionId,
-
-              toolCallId:
-                agentEvent.toolCallId,
-
-              result:
-                agentEvent.result,
-
-              isError:
-                agentEvent.isError,
-            });
-
-            continue;
-          }
-
-          writeEvent({
-            id:
-              createEventId(),
-
-            type:
-              "assistant.message",
-
-            timestamp:
-              Date.now(),
-
-            requestId:
-              agentEvent.requestId,
-
-            sessionId:
-              agentEvent.sessionId,
-
-            content:
-              agentEvent.content,
-          });
-        }
-      } catch (error) {
-        if (
-          error instanceof
-          InvalidSessionIdError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "INVALID_SESSION_ID",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
+        /*
+         * Duplicate delivery of the currently running
+         * request receives the durable ACK above, but
+         * must not start another AgentTurn.
+         */
+        if (activeTurn) {
           continue;
         }
 
-        if (
-          error instanceof
-          SessionNotFoundError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "SESSION_NOT_FOUND",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
-          continue;
-        }
-
-        if (
-          error instanceof
-          SessionCorruptError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "SESSION_CORRUPT",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
-          continue;
-        }
-
-        if (
-          error instanceof
-          RequestIdConflictError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "REQUEST_ID_CONFLICT",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
-          continue;
-        }
-
-        if (
-          error instanceof
-          SessionEventCorruptError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "SESSION_EVENT_CORRUPT",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
-          continue;
-        }
-
-        if (
-          error instanceof
-          SessionNotActiveError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "SESSION_NOT_ACTIVE",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
-          continue;
-        }
-
-        if (
-          error instanceof
-          AgentTurnInputError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "AGENT_TURN_INVALID",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
-          continue;
-        }
-
-        if (
-          error instanceof
-          AgentModelStreamError
-        ) {
-          writeEvent(
-            createRuntimeError(
-              "MODEL_STREAM_FAILED",
-              error.message,
-              message.id,
-              message.sessionId,
-            ),
-          );
-
-          continue;
-        }
-
-        writeEvent(
-          createRuntimeError(
-            "USER_MESSAGE_FAILED",
-            "Failed to process user message.",
-            message.id,
+        const turnPromise =
+          runAgentTurn(
             message.sessionId,
-          ),
+            message.id,
+          );
+
+        const active:
+          ActiveTurn = {
+            requestId:
+              message.id,
+
+            promise:
+              turnPromise,
+          };
+
+        activeTurns.set(
+          message.sessionId,
+          active,
+        );
+
+        void turnPromise.finally(
+          () => {
+            const current =
+              activeTurns.get(
+                message.sessionId,
+              );
+
+            if (
+              current ===
+              active
+            ) {
+              activeTurns.delete(
+                message.sessionId,
+              );
+            }
+          },
+        );
+      } catch (error) {
+        writeTurnError(
+          error,
+          message.id,
+          message.sessionId,
         );
       }
 
+      /*
+       * Deliberately do NOT await the AgentTurn here.
+       *
+       * stdin must stay available for:
+       * permission.response
+       */
       continue;
     }
 
@@ -769,6 +978,20 @@ export async function runStdioServer(
       ),
     );
   }
+
+  permissionPolicy.rejectAll(
+    "Client disconnected before permission response.",
+  );
+
+  await Promise.allSettled(
+    [...activeTurns.values()]
+      .map(
+        (
+          activeTurn,
+        ) =>
+          activeTurn.promise,
+      ),
+  );
 
   writeLog(
     "stdin closed; server stopped",

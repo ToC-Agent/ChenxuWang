@@ -246,6 +246,56 @@ const AssistantMessageEventSchema =
       z.string(),
   }).strict();
 
+const PermissionRequestEventSchema =
+  z.object({
+    id:
+      z.string()
+        .min(1),
+
+    type:
+      z.literal(
+        "permission.request",
+      ),
+
+    timestamp:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    requestId:
+      z.string()
+        .min(1),
+
+    sessionId:
+      SessionIdSchema,
+
+    permissionRequestId:
+      z.string()
+        .min(1),
+
+    toolCallId:
+      z.string()
+        .min(1),
+
+    toolName:
+      z.string()
+        .min(1),
+
+    permission:
+      z.enum([
+        "workspace.read",
+        "workspace.write",
+        "shell.execute",
+      ]),
+
+    arguments:
+      z.record(
+        z.string(),
+        z.unknown(),
+      ),
+  }).strict();
+
+
 const ToolCallEventSchema =
   z.object({
     id:
@@ -375,6 +425,7 @@ export const ServerEventSchema =
       UserMessageRecordedEventSchema,
       AssistantDeltaEventSchema,
       AssistantMessageEventSchema,
+      PermissionRequestEventSchema,
       ToolCallEventSchema,
       ToolResultEventSchema,
       RuntimeErrorEventSchema,
