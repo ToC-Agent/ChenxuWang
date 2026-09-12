@@ -524,6 +524,72 @@ export async function runStdioServer(
             continue;
           }
 
+          if (
+            agentEvent.type ===
+              "tool.call"
+          ) {
+            writeEvent({
+              id:
+                createEventId(),
+
+              type:
+                "tool.call",
+
+              timestamp:
+                Date.now(),
+
+              requestId:
+                agentEvent.requestId,
+
+              sessionId:
+                agentEvent.sessionId,
+
+              toolCallId:
+                agentEvent.toolCallId,
+
+              name:
+                agentEvent.name,
+
+              arguments:
+                agentEvent.arguments,
+            });
+
+            continue;
+          }
+
+          if (
+            agentEvent.type ===
+              "tool.result"
+          ) {
+            writeEvent({
+              id:
+                createEventId(),
+
+              type:
+                "tool.result",
+
+              timestamp:
+                Date.now(),
+
+              requestId:
+                agentEvent.requestId,
+
+              sessionId:
+                agentEvent.sessionId,
+
+              toolCallId:
+                agentEvent.toolCallId,
+
+              result:
+                agentEvent.result,
+
+              isError:
+                agentEvent.isError,
+            });
+
+            continue;
+          }
+
           writeEvent({
             id:
               createEventId(),

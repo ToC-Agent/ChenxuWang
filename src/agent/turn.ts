@@ -406,14 +406,41 @@ export class AgentTurn {
           const call of
             toolCalls
         ) {
-          this.sessionManager
-            .recordToolCall(
+          const recordedCall =
+            this.sessionManager
+              .recordToolCall(
+                roundSnapshot.session.id,
+                input.requestId,
+                call.id,
+                call.name,
+                call.arguments,
+              );
+
+          yield {
+            type:
+              "tool.call",
+
+            sessionId:
               roundSnapshot.session.id,
+
+            requestId:
               input.requestId,
-              call.id,
-              call.name,
-              call.arguments,
-            );
+
+            sessionEventId:
+              recordedCall.event.id,
+
+            toolCallId:
+              recordedCall.event.toolCallId,
+
+            name:
+              recordedCall.event.name,
+
+            arguments:
+              recordedCall.event.arguments,
+
+            replayed:
+              recordedCall.replayed,
+          };
         }
 
         /*
@@ -452,6 +479,33 @@ export class AgentTurn {
               );
 
           if (existingResult) {
+            yield {
+              type:
+                "tool.result",
+
+              sessionId:
+                roundSnapshot.session.id,
+
+              requestId:
+                input.requestId,
+
+              sessionEventId:
+                existingResult.id,
+
+              toolCallId:
+                existingResult.toolCallId,
+
+              result:
+                existingResult.result,
+
+              isError:
+                existingResult.isError ??
+                false,
+
+              replayed:
+                true,
+            };
+
             continue;
           }
 
@@ -470,14 +524,42 @@ export class AgentTurn {
               },
             );
 
-          this.sessionManager
-            .recordToolResult(
+          const recordedResult =
+            this.sessionManager
+              .recordToolResult(
+                roundSnapshot.session.id,
+                input.requestId,
+                call.id,
+                executionResult.result,
+                executionResult.isError,
+              );
+
+          yield {
+            type:
+              "tool.result",
+
+            sessionId:
               roundSnapshot.session.id,
+
+            requestId:
               input.requestId,
-              call.id,
-              executionResult.result,
-              executionResult.isError,
-            );
+
+            sessionEventId:
+              recordedResult.event.id,
+
+            toolCallId:
+              recordedResult.event.toolCallId,
+
+            result:
+              recordedResult.event.result,
+
+            isError:
+              recordedResult.event.isError ??
+              false,
+
+            replayed:
+              recordedResult.replayed,
+          };
         }
 
         /*

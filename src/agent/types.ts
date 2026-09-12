@@ -19,6 +19,59 @@ export type AgentTurnEvent =
     }
   | {
       type:
+        "tool.call";
+
+      sessionId:
+        string;
+
+      requestId:
+        string;
+
+      sessionEventId:
+        string;
+
+      toolCallId:
+        string;
+
+      name:
+        string;
+
+      arguments:
+        Record<
+          string,
+          unknown
+        >;
+
+      replayed:
+        boolean;
+    }
+  | {
+      type:
+        "tool.result";
+
+      sessionId:
+        string;
+
+      requestId:
+        string;
+
+      sessionEventId:
+        string;
+
+      toolCallId:
+        string;
+
+      result:
+        unknown;
+
+      isError:
+        boolean;
+
+      replayed:
+        boolean;
+    }
+  | {
+      type:
         "assistant.message";
 
       sessionId:
