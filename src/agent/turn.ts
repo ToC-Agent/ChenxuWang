@@ -99,6 +99,43 @@ function throwIfTurnAborted(
   }
 }
 
+async function* streamProviderEvents(
+  provider:
+    ModelProvider,
+  request:
+    ModelRequest,
+  input:
+    AgentTurnInput,
+) {
+  try {
+    yield* provider.stream(
+      request,
+      {
+        signal:
+          input.signal,
+      },
+    );
+  } catch (error) {
+    /*
+     * fetch / ReadableStream usually surfaces an AbortError.
+     *
+     * The important semantic signal is not the concrete
+     * provider error type, but whether this Turn's
+     * AbortSignal has already been cancelled.
+     */
+    if (
+      input.signal?.aborted
+    ) {
+      throw new AgentTurnInterruptedError(
+        input.sessionId,
+        input.requestId,
+      );
+    }
+
+    throw error;
+  }
+}
+
 export class AgentTurn {
   constructor(
     private readonly provider:
@@ -298,12 +335,10 @@ export class AgentTurn {
 
       for await (
         const event of
-          this.provider.stream(
+          streamProviderEvents(
+          this.provider,
           modelRequest,
-          {
-            signal:
-              input.signal,
-          },
+          input,
         )
       ) {
         if (completed) {
@@ -385,6 +420,10 @@ export class AgentTurn {
         finishReason =
           event.finishReason;
       }
+
+      throwIfTurnAborted(
+        input,
+      );
 
       if (
         !completed ||
