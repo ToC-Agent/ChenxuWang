@@ -48,3 +48,11 @@ export type {
 export type {
   ToolPermission,
 } from "./types.js";
+
+export {
+  filesystemWriteTool,
+} from "./builtins/filesystem-write.js";
+
+export type {
+  FilesystemWriteOutput,
+} from "./builtins/filesystem-write.js";
