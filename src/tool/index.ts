@@ -34,3 +34,17 @@ export {
 export {
   createDefaultToolRegistry,
 } from "./default-registry.js";
+
+export {
+  DefaultToolPermissionPolicy,
+} from "./permission.js";
+
+export type {
+  ToolPermissionDecision,
+  ToolPermissionPolicy,
+  ToolPermissionRequest,
+} from "./permission.js";
+
+export type {
+  ToolPermission,
+} from "./types.js";

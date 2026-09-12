@@ -3,6 +3,11 @@ import {
 } from "./errors.js";
 
 import {
+  DefaultToolPermissionPolicy,
+  type ToolPermissionPolicy,
+} from "./permission.js";
+
+import {
   ToolRegistry,
 } from "./registry.js";
 
@@ -14,26 +19,7 @@ import type {
   ToolResult,
 } from "./types.js";
 
-function createToolErrorResult(
-  toolCallId: string,
-  code: ToolErrorCode,
-  message: string,
-): ToolResult {
-  const result:
-    ToolErrorResult = {
-      code,
-      message,
-    };
-
-  return {
-    toolCallId,
-    result,
-    isError:
-      true,
-  };
-}
-
-function formatUnknownError(
+function errorMessage(
   error: unknown,
 ): string {
   if (
@@ -48,10 +34,36 @@ function formatUnknownError(
   );
 }
 
+function createErrorResult(
+  call: ToolCall,
+  code: ToolErrorCode,
+  message: string,
+): ToolResult {
+  const result:
+    ToolErrorResult = {
+      code,
+      message,
+    };
+
+  return {
+    toolCallId:
+      call.id,
+
+    result,
+
+    isError:
+      true,
+  };
+}
+
 export class ToolExecutor {
   constructor(
     private readonly registry:
       ToolRegistry,
+
+    private readonly permissionPolicy:
+      ToolPermissionPolicy =
+        new DefaultToolPermissionPolicy(),
   ) {}
 
   async execute(
@@ -71,8 +83,8 @@ export class ToolExecutor {
         error instanceof
         ToolNotFoundError
       ) {
-        return createToolErrorResult(
-          call.id,
+        return createErrorResult(
+          call,
           "TOOL_NOT_FOUND",
           error.message,
         );
@@ -87,7 +99,7 @@ export class ToolExecutor {
       );
 
     if (!parsed.success) {
-      const details =
+      const issues =
         parsed.error.issues
           .map(
             (issue) => {
@@ -95,19 +107,43 @@ export class ToolExecutor {
                 issue.path.length >
                 0
                   ? issue.path
-                      .map(String)
-                      .join(".")
+                      .map(
+                        String,
+                      )
+                      .join(
+                        ".",
+                      )
                   : "<root>";
 
               return `${path}: ${issue.message}`;
             },
           )
-          .join("; ");
+          .join(
+            "; ",
+          );
 
-      return createToolErrorResult(
-        call.id,
+      return createErrorResult(
+        call,
         "TOOL_INVALID_ARGUMENTS",
-        `Invalid arguments for Tongyu tool ${call.name}: ${details}`,
+        `Invalid arguments for Tongyu tool ${call.name}: ${issues}`,
+      );
+    }
+
+    const permissionDecision =
+      await this.permissionPolicy
+        .authorize({
+          tool,
+          call,
+          context,
+        });
+
+    if (
+      !permissionDecision.allowed
+    ) {
+      return createErrorResult(
+        call,
+        "TOOL_PERMISSION_DENIED",
+        permissionDecision.reason,
       );
     }
 
@@ -128,10 +164,10 @@ export class ToolExecutor {
           false,
       };
     } catch (error) {
-      return createToolErrorResult(
-        call.id,
+      return createErrorResult(
+        call,
         "TOOL_EXECUTION_FAILED",
-        `Tongyu tool execution failed: ${call.name}: ${formatUnknownError(error)}`,
+        `Tongyu tool execution failed: ${call.name}: ${errorMessage(error)}`,
       );
     }
   }

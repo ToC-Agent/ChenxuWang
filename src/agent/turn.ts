@@ -12,8 +12,10 @@ import {
 } from "../session/index.js";
 
 import {
+  DefaultToolPermissionPolicy,
   ToolExecutor,
   ToolRegistry,
+  type ToolPermissionPolicy,
 } from "../tool/index.js";
 
 import {
@@ -94,6 +96,10 @@ export class AgentTurn {
     private readonly toolRegistry:
       ToolRegistry =
         new ToolRegistry(),
+
+    private readonly permissionPolicy:
+      ToolPermissionPolicy =
+        new DefaultToolPermissionPolicy(),
   ) {}
 
   async *stream(
@@ -209,6 +215,7 @@ export class AgentTurn {
     const toolExecutor =
       new ToolExecutor(
         this.toolRegistry,
+        this.permissionPolicy,
       );
 
     let toolRoundCount =

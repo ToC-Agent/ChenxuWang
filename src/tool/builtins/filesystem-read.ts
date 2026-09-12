@@ -87,6 +87,9 @@ export const filesystemReadTool:
     description:
       "Read a UTF-8 text file inside the current working directory. The path must be relative to the workspace.",
 
+    permission:
+      "workspace.read",
+
     inputSchema:
       FilesystemReadInputSchema,
 

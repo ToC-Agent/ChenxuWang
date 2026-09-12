@@ -10,25 +10,27 @@ export type ToolArguments =
 
 export interface ToolCall {
   id: string;
-
   name: string;
-
   arguments:
     ToolArguments;
 }
 
 export interface ToolResult {
   toolCallId: string;
-
   result: unknown;
-
   isError?:
     boolean;
 }
 
+export type ToolPermission =
+  | "workspace.read"
+  | "workspace.write"
+  | "shell.execute";
+
 export type ToolErrorCode =
   | "TOOL_NOT_FOUND"
   | "TOOL_INVALID_ARGUMENTS"
+  | "TOOL_PERMISSION_DENIED"
   | "TOOL_EXECUTION_FAILED";
 
 export interface ToolErrorResult {
@@ -41,9 +43,7 @@ export interface ToolErrorResult {
 
 export interface ToolExecutionContext {
   sessionId: string;
-
   requestId: string;
-
   cwd: string;
 }
 
@@ -56,6 +56,9 @@ export interface Tool<
 
   readonly description:
     string;
+
+  readonly permission:
+    ToolPermission;
 
   readonly inputSchema:
     ZodType<Input>;
