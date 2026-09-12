@@ -3,6 +3,11 @@ import type {
   ModelStreamOptions,
 } from "./provider.js";
 
+import {
+  ModelProviderError,
+  type ModelProviderErrorCode,
+} from "./errors.js";
+
 import type {
   ModelRequest,
   ModelStreamEvent,
@@ -41,6 +46,52 @@ export interface OpenAICompatibleResponsesProviderOptions {
 
   fetchImpl?:
     FetchImplementation;
+}
+
+function httpStatusToProviderErrorCode(
+  status:
+    number,
+): ModelProviderErrorCode {
+  if (
+    status ===
+      401 ||
+    status ===
+      403
+  ) {
+    return "MODEL_AUTH_FAILED";
+  }
+
+  if (
+    status ===
+      429
+  ) {
+    return "MODEL_RATE_LIMITED";
+  }
+
+  if (
+    status >=
+      500
+  ) {
+    return "MODEL_PROVIDER_UNAVAILABLE";
+  }
+
+  return "MODEL_REQUEST_FAILED";
+}
+
+function unknownErrorMessage(
+  error:
+    unknown,
+): string {
+  if (
+    error instanceof
+      Error
+  ) {
+    return error.message;
+  }
+
+  return String(
+    error,
+  );
 }
 
 function asRecord(
@@ -94,7 +145,8 @@ function parseArguments(
         text,
       );
   } catch {
-    throw new Error(
+    throw new ModelProviderError(
+      "MODEL_PROTOCOL_ERROR",
       "OpenAI-compatible endpoint returned invalid JSON tool arguments.",
     );
   }
@@ -105,7 +157,8 @@ function parseArguments(
     );
 
   if (!record) {
-    throw new Error(
+    throw new ModelProviderError(
+      "MODEL_PROTOCOL_ERROR",
       "OpenAI-compatible tool arguments must be a JSON object.",
     );
   }
@@ -371,7 +424,8 @@ function parseSseBlock(
       data,
     );
   } catch {
-    throw new Error(
+    throw new ModelProviderError(
+      "MODEL_PROTOCOL_ERROR",
       "OpenAI-compatible endpoint returned an invalid SSE JSON event.",
     );
   }
@@ -380,13 +434,16 @@ function parseSseBlock(
 async function* readSseEvents(
   response:
     Response,
+  signal?:
+    AbortSignal,
 ): AsyncIterable<
   unknown
 > {
   if (
     !response.body
   ) {
-    throw new Error(
+    throw new ModelProviderError(
+      "MODEL_PROTOCOL_ERROR",
       "OpenAI-compatible streaming response had no body.",
     );
   }
@@ -486,6 +543,29 @@ async function* readSseEvents(
         yield event;
       }
     }
+  } catch (error) {
+    if (
+      error instanceof
+        ModelProviderError
+    ) {
+      throw error;
+    }
+
+    if (
+      signal?.aborted
+    ) {
+      /*
+       * AgentTurn owns cancellation semantics.
+       * Let the raw abort escape so its adapter can
+       * convert it into AgentTurnInterruptedError.
+       */
+      throw error;
+    }
+
+    throw new ModelProviderError(
+      "MODEL_NETWORK_ERROR",
+      `OpenAI-compatible response stream failed: ${unknownErrorMessage(error)}`,
+    );
   } finally {
     reader.releaseLock();
   }
@@ -663,36 +743,65 @@ export class OpenAICompatibleResponsesProvider
       };
     }
 
-    const response =
-      await this.fetchImpl(
-        `${this.baseUrl}/responses`,
-        {
-          method:
-            "POST",
+    let response:
+      Response;
 
-          headers: {
-            Authorization:
-              `Bearer ${this.apiKey}`,
+    try {
+      response =
+        await this.fetchImpl(
+          `${this.baseUrl}/responses`,
+          {
+            method:
+              "POST",
 
-            "Content-Type":
-              "application/json",
+            headers: {
+              Authorization:
+                `Bearer ${this.apiKey}`,
+
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(
+                payload,
+              ),
+
+            signal:
+              options.signal,
           },
+        );
+    } catch (error) {
+      if (
+        options.signal?.aborted
+      ) {
+        /*
+         * AgentTurn converts cancellation into
+         * AgentTurnInterruptedError.
+         */
+        throw error;
+      }
 
-          body:
-            JSON.stringify(
-              payload,
-            ),
-
-          signal:
-            options.signal,
-        },
+      throw new ModelProviderError(
+        "MODEL_NETWORK_ERROR",
+        `OpenAI-compatible request failed: ${unknownErrorMessage(error)}`,
       );
+    }
 
     if (
       !response.ok
     ) {
-      throw new Error(
-        `OpenAI-compatible Responses request failed: ${await readErrorMessage(response)}`,
+      const message =
+        await readErrorMessage(
+          response,
+        );
+
+      throw new ModelProviderError(
+        httpStatusToProviderErrorCode(
+          response.status,
+        ),
+        `OpenAI-compatible Responses request failed: ${message}`,
+        response.status,
       );
     }
 
@@ -706,6 +815,7 @@ export class OpenAICompatibleResponsesProvider
       const rawEvent
       of readSseEvents(
         response,
+        options.signal,
       )
     ) {
       const event =
@@ -900,7 +1010,8 @@ export class OpenAICompatibleResponsesProvider
           ) ??
           "OpenAI-compatible response failed.";
 
-        throw new Error(
+        throw new ModelProviderError(
+          "MODEL_PROVIDER_ERROR",
           message,
         );
       }
@@ -909,7 +1020,8 @@ export class OpenAICompatibleResponsesProvider
     if (
       !emittedCompletion
     ) {
-      throw new Error(
+      throw new ModelProviderError(
+        "MODEL_PROTOCOL_ERROR",
         "OpenAI-compatible response stream ended without a terminal event.",
       );
     }

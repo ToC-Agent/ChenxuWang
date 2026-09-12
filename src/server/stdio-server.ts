@@ -23,7 +23,9 @@ import {
   
   type ModelProvider,
 
-  createModelProviderFromEnvironment,} from "../model/index.js";
+  createModelProviderFromEnvironment,
+  ModelProviderError,
+} from "../model/index.js";
 
 import {
   createInterface,
@@ -516,6 +518,22 @@ export async function runStdioServer(
     sessionId:
       string,
   ): void {
+  if (
+    error instanceof
+      ModelProviderError
+  ) {
+    writeEvent(
+      createRuntimeError(
+        error.code,
+        error.message,
+        requestId,
+        sessionId,
+      ),
+    );
+
+    return;
+  }
+
     if (
       error instanceof
         AgentTurnInterruptedError

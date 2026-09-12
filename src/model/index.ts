@@ -29,3 +29,9 @@ export type {
   ModelToolCall,
   ModelToolDefinition,
 } from "./types.js";
+
+export {
+  ModelProviderError,
+  type ModelProviderErrorCode,
+} from "./errors.js";
+
