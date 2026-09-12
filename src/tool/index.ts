@@ -26,3 +26,11 @@ export type {
   ToolExecutionContext,
   ToolResult,
 } from "./types.js";
+
+export {
+  filesystemReadTool,
+} from "./builtins/filesystem-read.js";
+
+export {
+  createDefaultToolRegistry,
+} from "./default-registry.js";

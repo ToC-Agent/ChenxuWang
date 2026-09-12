@@ -1,4 +1,8 @@
 import {
+  createDefaultToolRegistry,
+} from "../tool/index.js";
+
+import {
   randomUUID,
 } from "node:crypto";
 
@@ -109,6 +113,9 @@ export async function runStdioServer(
   const sessionManager =
     new SessionManager();
 
+  const toolRegistry =
+    createDefaultToolRegistry();
+
   const modelProvider =
     options.modelProvider ??
     new FakeModelProvider({
@@ -123,6 +130,7 @@ export async function runStdioServer(
     new AgentTurn(
       modelProvider,
       sessionManager,
+      toolRegistry,
     );
 
   let initialized =
@@ -211,7 +219,7 @@ export async function runStdioServer(
           sessions: true,
           streaming: true,
           interrupt: false,
-          tools: false,
+          tools: true,
         },
       });
 
