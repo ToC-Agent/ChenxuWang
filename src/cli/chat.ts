@@ -980,6 +980,38 @@ export async function runChatClient(
 
   await ready;
 
+  /*
+   * A resumed session may already be completed.
+   * In that case session.history.end closes the input
+   * before the interactive stdin loop starts.
+   *
+   * Entering readline's async iterator after close has
+   * already fired can leave the top-level CLI await
+   * unsettled. Finish the child/server lifecycle here
+   * instead of entering the chat loop.
+   */
+  if (
+    closing
+  ) {
+    await serverTask;
+
+    const exitCode =
+      await exitPromise;
+
+    if (
+      exitCode !==
+        0 &&
+      exitCode !==
+        null
+    ) {
+      throw new Error(
+        `Tongyu server exited with code ${exitCode}.`,
+      );
+    }
+
+    return;
+  }
+
   prompt();
 
   try {
