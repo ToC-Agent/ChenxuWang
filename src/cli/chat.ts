@@ -477,6 +477,7 @@ function printHelp(): void {
       "Tongyu Chat Commands",
       "====================",
       "/help   Show commands",
+      "/changes [path]  List workspace changes",
       "/stop   Stop the active turn",
       "/allow  Approve the pending tool permission once",
       "/deny   Deny the pending tool permission",
@@ -1317,6 +1318,155 @@ export async function runChatClient(
             }
 
             if (
+
+              type ===
+
+                "workspace.change.item"
+
+            ) {
+
+              finishAssistantStream();
+
+
+              const changeSet =
+
+                event[
+
+                  "changeSet"
+
+                ];
+
+
+              if (
+
+                isJsonObject(
+
+                  changeSet,
+
+                )
+
+              ) {
+
+                const path =
+
+                  readString(
+
+                    changeSet,
+
+                    "path",
+
+                  ) ??
+
+                  "unknown";
+
+
+                const changes =
+
+                  changeSet[
+
+                    "changes"
+
+                  ];
+
+
+                const changeCount =
+
+                  Array.isArray(
+
+                    changes,
+
+                  )
+
+                    ? changes.length
+
+                    : 0;
+
+
+                const sourceToolName =
+
+                  readString(
+
+                    event,
+
+                    "sourceToolName",
+
+                  ) ??
+
+                  "unknown";
+
+
+                process.stdout.write(
+
+                  `[changes] ${path} (${changeCount} ${
+
+                    changeCount ===
+
+                      1
+
+                      ? "change"
+
+                      : "changes"
+
+                  }, via ${sourceToolName})\n`,
+
+                );
+
+              }
+
+
+              continue;
+
+            }
+
+
+            if (
+
+              type ===
+
+                "workspace.change.list.end"
+
+            ) {
+
+              finishAssistantStream();
+
+
+              const count =
+
+                typeof event.count ===
+
+                  "number"
+
+                  ? event.count
+
+                  : 0;
+
+
+              process.stdout.write(
+
+                `[changes] ${count} workspace ${
+
+                  count ===
+
+                    1
+
+                    ? "change"
+
+                    : "changes"
+
+                }.\n`,
+
+              );
+
+
+              prompt();
+
+
+              continue;
+
+            }
+
+
+            if (
               type ===
                 "workspace.change"
             ) {
@@ -1732,6 +1882,154 @@ export async function runChatClient(
 
         continue;
       }
+
+      if (
+
+        command ===
+
+          "/changes" ||
+
+        command.startsWith(
+
+          "/changes ",
+
+        )
+
+      ) {
+
+        if (
+
+          pendingPermission
+
+        ) {
+
+          process.stdout.write(
+
+            "A permission decision is pending. Resolve it before querying changes.\n",
+
+          );
+
+
+          prompt();
+
+
+          continue;
+
+        }
+
+
+        if (
+
+          busy
+
+        ) {
+
+          process.stdout.write(
+
+            "Tongyu is still working. Use /stop before querying changes.\n",
+
+          );
+
+
+          prompt();
+
+
+          continue;
+
+        }
+
+
+        if (
+
+          !sessionId
+
+        ) {
+
+          process.stdout.write(
+
+            "Session is not ready yet.\n",
+
+          );
+
+
+          prompt();
+
+
+          continue;
+
+        }
+
+
+        const pathFilter =
+
+          command ===
+
+            "/changes"
+
+            ? undefined
+
+            : command
+
+                .slice(
+
+                  "/changes".length,
+
+                )
+
+                .trim();
+
+
+        const request:
+
+          JsonObject = {
+
+            id:
+
+              createRequestId(
+
+                "req-chat-changes",
+
+              ),
+
+
+            type:
+
+              "workspace.changes.list",
+
+
+            sessionId,
+
+          };
+
+
+        if (
+
+          pathFilter
+
+        ) {
+
+          request[
+
+            "path"
+
+          ] =
+
+            pathFilter;
+
+        }
+
+
+        send(
+
+          request,
+
+        );
+
+
+        continue;
+
+      }
+
 
       if (
         command ===

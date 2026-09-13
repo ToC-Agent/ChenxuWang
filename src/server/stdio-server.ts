@@ -1,5 +1,5 @@
 import {
-  extractTextFileChangeSet,
+  deriveWorkspaceChanges,
 } from "../workspace/index.js";
 
 import {
@@ -1107,6 +1107,112 @@ export async function runStdioServer(
 
     if (
       message.type ===
+        "workspace.changes.list"
+    ) {
+      try {
+        const snapshot =
+          sessionManager.resume(
+            message.sessionId,
+          );
+
+        const workspaceChanges =
+          deriveWorkspaceChanges(
+            snapshot.events,
+            {
+              ...(
+                message.sourceRequestId
+                  ? {
+                      sourceRequestId:
+                        message.sourceRequestId,
+                    }
+                  : {}
+              ),
+
+              ...(
+                message.path
+                  ? {
+                      path:
+                        message.path,
+                    }
+                  : {}
+              ),
+            },
+          );
+
+        for (
+          const workspaceChange of
+            workspaceChanges
+        ) {
+          writeEvent({
+            id:
+              createEventId(),
+
+            type:
+              "workspace.change.item",
+
+            timestamp:
+              Date.now(),
+
+            requestId:
+              message.id,
+
+            sourceRequestId:
+              workspaceChange
+                .sourceRequestId,
+
+            sessionId:
+              snapshot.session.id,
+
+            sessionEventId:
+              workspaceChange
+                .sessionEventId,
+
+            toolCallId:
+              workspaceChange
+                .toolCallId,
+
+            sourceToolName:
+              workspaceChange
+                .sourceToolName,
+
+            changeSet:
+              workspaceChange
+                .changeSet,
+          });
+        }
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "workspace.change.list.end",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          count:
+            workspaceChanges.length,
+        });
+      } catch (error) {
+        writeTurnError(
+          error,
+          message.id,
+          message.sessionId,
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
       "session.resume"
     ) {
       try {
@@ -1174,57 +1280,20 @@ export async function runStdioServer(
         }
 
         /*
-         * workspace.change is derived from the durable
-         * tool.result ChangeSet.
+         * workspace.change is a derived Runtime/Protocol event.
          *
-         * Do not persist another copy. Reconstruct it when
-         * a client resumes the session.
+         * Resume and explicit queries share the same durable
+         * tool.result -> Workspace Change projection.
          */
+        const replayedWorkspaceChanges =
+          deriveWorkspaceChanges(
+            snapshot.events,
+          );
+
         for (
-          const historyEvent of
-            snapshot.events
+          const workspaceChange of
+            replayedWorkspaceChanges
         ) {
-          if (
-            historyEvent.type !==
-              "tool.result" ||
-            (
-              historyEvent.isError ??
-              false
-            )
-          ) {
-            continue;
-          }
-
-          const replayedWorkspaceChangeSet =
-            extractTextFileChangeSet(
-              historyEvent.result,
-            );
-
-          if (
-            !replayedWorkspaceChangeSet
-          ) {
-            continue;
-          }
-
-          const sourceToolCall =
-            snapshot.events.find(
-              (candidate) =>
-                candidate.type ===
-                  "tool.call" &&
-                candidate.requestId ===
-                  historyEvent.requestId &&
-                candidate.toolCallId ===
-                  historyEvent.toolCallId,
-            );
-
-          if (
-            !sourceToolCall ||
-            sourceToolCall.type !==
-              "tool.call"
-          ) {
-            continue;
-          }
-
           writeEvent({
             id:
               createEventId(),
@@ -1235,34 +1304,31 @@ export async function runStdioServer(
             timestamp:
               Date.now(),
 
-            /*
-             * Correlate this protocol event with the
-             * current session.resume request.
-             */
             requestId:
               message.id,
 
-            /*
-             * Preserve the user turn that originally
-             * caused the workspace mutation.
-             */
             sourceRequestId:
-              historyEvent.requestId,
+              workspaceChange
+                .sourceRequestId,
 
             sessionId:
               snapshot.session.id,
 
             sessionEventId:
-              historyEvent.id,
+              workspaceChange
+                .sessionEventId,
 
             toolCallId:
-              historyEvent.toolCallId,
+              workspaceChange
+                .toolCallId,
 
             sourceToolName:
-              sourceToolCall.name,
+              workspaceChange
+                .sourceToolName,
 
             changeSet:
-              replayedWorkspaceChangeSet,
+              workspaceChange
+                .changeSet,
 
             replayed:
               true,

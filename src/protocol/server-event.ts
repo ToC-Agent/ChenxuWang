@@ -464,6 +464,66 @@ const WorkspaceChangeEventSchema =
       z.boolean(),
   }).strict();
 
+const WorkspaceChangeItemEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.item",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sourceRequestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    sessionEventId:
+      z.string().min(1),
+
+    toolCallId:
+      z.string().min(1),
+
+    sourceToolName:
+      z.string().min(1),
+
+    changeSet:
+      TextFileChangeSetSchema,
+  }).strict();
+
+const WorkspaceChangeListEndEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.list.end",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    count:
+      z.number()
+        .int()
+        .nonnegative(),
+  }).strict();
+
 const RuntimeErrorEventSchema =
   z.object({
     id:
@@ -611,6 +671,8 @@ export const ServerEventSchema =
       ToolCallEventSchema,
       ToolResultEventSchema,
       WorkspaceChangeEventSchema,
+      WorkspaceChangeItemEventSchema,
+      WorkspaceChangeListEndEventSchema,
       RuntimeErrorEventSchema,
       SessionEndEventSchema,
     ],

@@ -155,6 +155,29 @@ const SessionListMessageSchema =
       ),
   }).strict();
 
+const WorkspaceChangesListMessageSchema =
+  z.object({
+    id:
+      MessageIdSchema,
+
+    type:
+      z.literal(
+        "workspace.changes.list",
+      ),
+
+    sessionId:
+      SessionIdSchema,
+
+    sourceRequestId:
+      MessageIdSchema
+        .optional(),
+
+    path:
+      z.string()
+        .min(1)
+        .optional(),
+  }).strict();
+
 export const ClientMessageSchema =
   z.discriminatedUnion(
     "type",
@@ -163,6 +186,7 @@ export const ClientMessageSchema =
       SessionCreateMessageSchema,
       SessionResumeMessageSchema,
       SessionListMessageSchema,
+      WorkspaceChangesListMessageSchema,
       SessionCloseMessageSchema,
       UserMessageSchema,
       PermissionResponseMessageSchema,
