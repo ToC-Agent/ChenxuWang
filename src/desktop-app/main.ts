@@ -239,7 +239,7 @@ async function startDesktopRuntime():
   }
 
   const client =
-    await startDesktopRuntime();
+    await runtimeHost.start();
 
   attachRuntimeEventBridge(
     client,
@@ -1016,15 +1016,14 @@ app.whenReady()
             window,
           );
 
-          app.quit();
+          app.exit(
+            0,
+          );
         } catch (error) {
           console.error(
             "[tongyu-desktop-smoke] failed",
             error,
           );
-
-          process.exitCode =
-            1;
 
           try {
             await runtimeHost.stop();
@@ -1032,7 +1031,9 @@ app.whenReady()
             // Preserve the smoke-test failure.
           }
 
-          app.quit();
+          app.exit(
+            1,
+          );
         }
 
         return;
