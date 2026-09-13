@@ -1,4 +1,8 @@
 import {
+  persistWorkspaceTextSnapshot,
+} from "../../workspace/snapshot-store.js";
+
+import {
   randomUUID,
 } from "node:crypto";
 
@@ -431,6 +435,12 @@ async function prepareFilesystemWrite(
       path:
         target.relativePath,
 
+      beforeExists:
+        target.exists,
+
+      afterExists:
+        true,
+
       beforeContent:
         target.content,
 
@@ -536,6 +546,15 @@ export const filesystemWriteTool:
          */
         throw new Error(
           `File appeared after permission preview; refusing stale write: ${input.path}`,
+        );
+      }
+
+      if (
+        prepared.beforeExists
+      ) {
+        await persistWorkspaceTextSnapshot(
+          prepared.beforeContent,
+          prepared.changeSet.beforeSha256,
         );
       }
 

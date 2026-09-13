@@ -46,11 +46,19 @@ export const TextFileChangeSetSchema =
       z.string()
         .min(1),
 
+    beforeExists:
+      z.boolean()
+        .optional(),
+
     beforeSha256:
       z.string()
         .regex(
           /^[0-9a-f]{64}$/,
         ),
+
+    afterExists:
+      z.boolean()
+        .optional(),
 
     afterSha256:
       z.string()
@@ -79,7 +87,7 @@ export type TextFileChangeSet =
     typeof TextFileChangeSetSchema
   >;
 
-function sha256Text(
+export function sha256Text(
   content: string,
 ): string {
   return createHash(
@@ -201,6 +209,10 @@ export function createTextFileChangeSet(
   input: {
     path: string;
 
+    beforeExists: boolean;
+
+    afterExists: boolean;
+
     beforeContent: string;
 
     afterContent: string;
@@ -212,6 +224,12 @@ export function createTextFileChangeSet(
   return {
     path:
       input.path,
+
+    beforeExists:
+      input.beforeExists,
+
+    afterExists:
+      input.afterExists,
 
     beforeSha256:
       sha256Text(

@@ -1,6 +1,8 @@
 import {
+  WorkspaceRevertError,
   deriveWorkspaceChanges,
   inspectWorkspaceChangeStatus,
+  revertWorkspaceFile,
   summarizeWorkspaceChanges,
 } from "../workspace/index.js";
 
@@ -1106,6 +1108,79 @@ export async function runStdioServer(
 
       continue;
     }
+    if (
+      message.type ===
+        "workspace.changes.revert"
+    ) {
+      try {
+        const snapshot =
+          sessionManager.resume(
+            message.sessionId,
+          );
+
+        const result =
+          await revertWorkspaceFile(
+            snapshot.session.cwd,
+            snapshot.events,
+            message.path,
+          );
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "workspace.change.reverted",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          path:
+            result.path,
+
+          action:
+            result.action,
+
+          fromSha256:
+            result.fromSha256,
+
+          toSha256:
+            result.toSha256,
+
+          bytes:
+            result.bytes,
+        });
+      } catch (error) {
+        if (
+          error instanceof
+            WorkspaceRevertError
+        ) {
+          writeEvent(
+            createRuntimeError(
+              error.code,
+              error.message,
+              message.id,
+              message.sessionId,
+            ),
+          );
+        } else {
+          writeTurnError(
+            error,
+            message.id,
+            message.sessionId,
+          );
+        }
+      }
+
+      continue;
+    }
+
     if (
       message.type ===
         "workspace.changes.status"

@@ -17,6 +17,7 @@ export function initializeRuntime(): RuntimePaths {
     paths.root,
     paths.config,
     paths.sessions,
+    paths.snapshots,
     paths.logs,
     paths.runtime,
   ];

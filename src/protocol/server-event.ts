@@ -748,6 +748,55 @@ const WorkspaceChangeStatusEndEventSchema =
         .nonnegative(),
   }).strict();
 
+const WorkspaceChangeRevertedEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.reverted",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    path:
+      z.string()
+        .min(1),
+
+    action:
+      z.enum([
+        "restored",
+        "deleted",
+      ]),
+
+    fromSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    toSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        )
+        .nullable(),
+
+    bytes:
+      z.number()
+        .int()
+        .nonnegative()
+        .nullable(),
+  }).strict();
+
 const RuntimeErrorEventSchema =
   z.object({
     id:
@@ -901,6 +950,7 @@ export const ServerEventSchema =
       WorkspaceChangeSummaryEndEventSchema,
       WorkspaceChangeStatusItemEventSchema,
       WorkspaceChangeStatusEndEventSchema,
+      WorkspaceChangeRevertedEventSchema,
       RuntimeErrorEventSchema,
       SessionEndEventSchema,
     ],

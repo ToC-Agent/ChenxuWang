@@ -1,4 +1,8 @@
 import {
+  persistWorkspaceTextSnapshot,
+} from "../../workspace/snapshot-store.js";
+
+import {
   isAbsolute,
 } from "node:path";
 
@@ -201,6 +205,12 @@ async function prepareFilesystemPatch(
       path:
         file.relativePath,
 
+      beforeExists:
+        true,
+
+      afterExists:
+        true,
+
       beforeContent:
         file.content,
 
@@ -279,6 +289,11 @@ export const filesystemPatchTool:
           `File changed after permission preview; refusing stale patch: ${input.path}`,
         );
       }
+
+      await persistWorkspaceTextSnapshot(
+        prepared.beforeContent,
+        prepared.changeSet.beforeSha256,
+      );
 
       const bytes =
         await writeWorkspaceTextFileAtomic(

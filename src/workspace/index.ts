@@ -33,3 +33,18 @@ export type {
   WorkspaceChangeFileStatus,
   WorkspaceChangeStatusSummary,
 } from "./status.js";
+
+export {
+  WorkspaceRevertError,
+  revertWorkspaceFile,
+} from "./revert.js";
+
+export type {
+  WorkspaceRevertErrorCode,
+  WorkspaceRevertResult,
+} from "./revert.js";
+
+export {
+  persistWorkspaceTextSnapshot,
+  readWorkspaceTextSnapshot,
+} from "./snapshot-store.js";

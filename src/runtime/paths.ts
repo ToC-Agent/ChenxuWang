@@ -11,6 +11,8 @@ export interface RuntimePaths {
   root: string;
   config: string;
   sessions: string;
+
+  snapshots: string;
   logs: string;
   runtime: string;
 }
@@ -27,6 +29,8 @@ export function getRuntimePaths(): RuntimePaths {
     root,
     config: join(root, "config"),
     sessions: join(root, "sessions"),
+
+    snapshots: join(root, "snapshots"),
     logs: join(root, "logs"),
     runtime: join(root, "runtime"),
   };
