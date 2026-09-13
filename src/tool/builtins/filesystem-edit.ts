@@ -1,23 +1,5 @@
 import {
-  randomUUID,
-} from "node:crypto";
-
-import {
-  lstat,
-  readFile,
-  realpath,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-
-import {
-  basename,
-  dirname,
   isAbsolute,
-  relative,
-  resolve,
-  sep,
 } from "node:path";
 
 import {
@@ -28,8 +10,11 @@ import type {
   Tool,
 } from "../types.js";
 
-const MAX_EDIT_BYTES =
-  1024 * 1024;
+import {
+  countTextOccurrences,
+  loadExistingWorkspaceTextFile,
+  writeWorkspaceTextFileAtomic,
+} from "./workspace-text-file.js";
 
 const FilesystemEditInputSchema =
   z.object({
@@ -71,80 +56,6 @@ export interface FilesystemEditOutput {
   replacements: 1;
 }
 
-function isInsideWorkspace(
-  workspacePath: string,
-  candidatePath: string,
-): boolean {
-  const relativePath =
-    relative(
-      workspacePath,
-      candidatePath,
-    );
-
-  return (
-    relativePath ===
-      "" ||
-    (
-      relativePath !==
-        ".." &&
-      !relativePath.startsWith(
-        `..${sep}`,
-      ) &&
-      !isAbsolute(
-        relativePath,
-      )
-    )
-  );
-}
-
-function countOccurrences(
-  content: string,
-  search: string,
-): number {
-  let count =
-    0;
-
-  let offset =
-    0;
-
-  while (
-    offset <=
-    content.length -
-      search.length
-  ) {
-    const index =
-      content.indexOf(
-        search,
-        offset,
-      );
-
-    if (
-      index <
-      0
-    ) {
-      break;
-    }
-
-    count +=
-      1;
-
-    /*
-     * Advance one character instead of search.length.
-     *
-     * This deliberately detects overlapping matches:
-     *
-     * content = "aaa"
-     * oldText = "aa"
-     *
-     * is considered ambiguous and therefore rejected.
-     */
-    offset =
-      index + 1;
-  }
-
-  return count;
-}
-
 export const filesystemEditTool:
   Tool<
     FilesystemEditInput,
@@ -154,7 +65,7 @@ export const filesystemEditTool:
       "filesystem.edit",
 
     description:
-      "Precisely replace exactly one occurrence of oldText with newText in an existing UTF-8 text file inside the current workspace. The edit fails without modifying the file if oldText is missing or matches more than once. Prefer this tool for targeted edits to existing files.",
+      "Precisely replace exactly one occurrence of oldText with newText in an existing UTF-8 text file inside the current workspace. The edit fails without modifying the file if oldText is missing or matches more than once. Prefer this tool for one targeted edit.",
 
     permission:
       "workspace.write",
@@ -166,150 +77,16 @@ export const filesystemEditTool:
       input,
       context,
     ) {
-      const workspacePath =
-        await realpath(
+      const file =
+        await loadExistingWorkspaceTextFile(
           context.cwd,
-        );
-
-      const requestedPath =
-        resolve(
-          workspacePath,
           input.path,
-        );
-
-      /*
-       * Reject lexical traversal before touching
-       * the requested file.
-       */
-      if (
-        !isInsideWorkspace(
-          workspacePath,
-          requestedPath,
-        )
-      ) {
-        throw new Error(
-          `Refusing to edit outside the workspace: ${input.path}`,
-        );
-      }
-
-      /*
-       * Resolve the parent directory so a workspace
-       * symlink cannot redirect the edit outside.
-       */
-      const requestedParent =
-        dirname(
-          requestedPath,
-        );
-
-      const resolvedParent =
-        await realpath(
-          requestedParent,
-        );
-
-      if (
-        !isInsideWorkspace(
-          workspacePath,
-          resolvedParent,
-        )
-      ) {
-        throw new Error(
-          `Refusing to edit outside the workspace: ${input.path}`,
-        );
-      }
-
-      const finalPath =
-        resolve(
-          resolvedParent,
-          basename(
-            requestedPath,
-          ),
-        );
-
-      if (
-        !isInsideWorkspace(
-          workspacePath,
-          finalPath,
-        )
-      ) {
-        throw new Error(
-          `Refusing to edit outside the workspace: ${input.path}`,
-        );
-      }
-
-      let stats;
-
-      try {
-        stats =
-          await lstat(
-            finalPath,
-          );
-      } catch (error) {
-        if (
-          error &&
-          typeof error ===
-            "object" &&
-          "code" in error &&
-          error.code ===
-            "ENOENT"
-        ) {
-          throw new Error(
-            `Cannot edit a file that does not exist: ${input.path}`,
-          );
-        }
-
-        throw error;
-      }
-
-      if (
-        stats.isSymbolicLink()
-      ) {
-        throw new Error(
-          `Refusing to edit through a symbolic link: ${input.path}`,
-        );
-      }
-
-      if (
-        !stats.isFile()
-      ) {
-        throw new Error(
-          `Path is not a regular file: ${input.path}`,
-        );
-      }
-
-      if (
-        stats.size >
-        MAX_EDIT_BYTES
-      ) {
-        throw new Error(
-          `File exceeds the ${MAX_EDIT_BYTES} byte edit limit.`,
-        );
-      }
-
-      const resolvedExisting =
-        await realpath(
-          finalPath,
-        );
-
-      if (
-        !isInsideWorkspace(
-          workspacePath,
-          resolvedExisting,
-        )
-      ) {
-        throw new Error(
-          `Refusing to edit outside the workspace: ${input.path}`,
-        );
-      }
-
-      const currentContent =
-        await readFile(
-          finalPath,
-          "utf8",
+          "edit",
         );
 
       const matchCount =
-        countOccurrences(
-          currentContent,
+        countTextOccurrences(
+          file.content,
           input.oldText,
         );
 
@@ -332,79 +109,30 @@ export const filesystemEditTool:
       }
 
       const matchIndex =
-        currentContent.indexOf(
+        file.content.indexOf(
           input.oldText,
         );
 
       const updatedContent =
-        currentContent.slice(
+        file.content.slice(
           0,
           matchIndex,
         ) +
         input.newText +
-        currentContent.slice(
+        file.content.slice(
           matchIndex +
             input.oldText.length,
         );
 
       const bytes =
-        Buffer.byteLength(
+        await writeWorkspaceTextFileAtomic(
+          file,
           updatedContent,
-          "utf8",
         );
-
-      if (
-        bytes >
-        MAX_EDIT_BYTES
-      ) {
-        throw new Error(
-          `Edited content exceeds the ${MAX_EDIT_BYTES} byte edit limit.`,
-        );
-      }
-
-      const tempPath =
-        resolve(
-          resolvedParent,
-          `.${basename(finalPath)}.tongyu-${randomUUID()}.tmp`,
-        );
-
-      try {
-        await writeFile(
-          tempPath,
-          updatedContent,
-          {
-            encoding:
-              "utf8",
-
-            flag:
-              "wx",
-
-            mode:
-              stats.mode &
-              0o777,
-          },
-        );
-
-        await rename(
-          tempPath,
-          finalPath,
-        );
-      } finally {
-        await rm(
-          tempPath,
-          {
-            force:
-              true,
-          },
-        );
-      }
 
       return {
         path:
-          relative(
-            workspacePath,
-            finalPath,
-          ),
+          file.relativePath,
 
         bytes,
 

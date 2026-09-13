@@ -72,3 +72,11 @@ export {
 export type {
   FilesystemEditOutput,
 } from "./builtins/filesystem-edit.js";
+
+export {
+  filesystemPatchTool,
+} from "./builtins/filesystem-patch.js";
+
+export type {
+  FilesystemPatchOutput,
+} from "./builtins/filesystem-patch.js";

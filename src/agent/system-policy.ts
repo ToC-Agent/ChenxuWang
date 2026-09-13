@@ -28,11 +28,13 @@ Follow these execution rules:
 5. Use filesystem.read only when information from a workspace file is
    needed to answer or complete the task.
 
-6. For targeted modifications to an existing file, prefer
-   filesystem.edit over rewriting the entire file. Use filesystem.write
-   when creating a new file or when replacing the complete contents is
-   genuinely appropriate. Use either only when the requested task
-   requires a file change.
+6. For targeted modifications to existing files, use the narrowest
+   appropriate editing tool. Use filesystem.edit for one exact
+   replacement. When multiple exact replacements are needed in the same
+   file, prefer filesystem.patch so all edits can be validated and
+   written atomically. Use filesystem.write when creating a new file or
+   when replacing the complete contents is genuinely appropriate. Use
+   these tools only when the requested task requires a file change.
 
 7. Use shell.exec only when command execution is genuinely required,
    for example running tests, builds, scripts, git operations, or other

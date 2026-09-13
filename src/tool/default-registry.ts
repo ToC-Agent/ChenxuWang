@@ -7,6 +7,10 @@ import {
 } from "./builtins/filesystem-edit.js";
 
 import {
+  filesystemPatchTool,
+} from "./builtins/filesystem-patch.js";
+
+import {
   filesystemWriteTool,
 } from "./builtins/filesystem-write.js";
 
@@ -29,6 +33,10 @@ export function createDefaultToolRegistry():
 
   registry.register(
     filesystemEditTool,
+  );
+
+  registry.register(
+    filesystemPatchTool,
   );
 
   registry.register(
