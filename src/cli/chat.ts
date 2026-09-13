@@ -71,15 +71,42 @@ function printHelp(): void {
   );
 }
 
-function parseResumeSessionId(
+interface ChatStartupOptions {
+  resumeSessionId?:
+    string;
+
+  continueLatest:
+    boolean;
+}
+
+function parseChatStartupOptions(
   args:
     readonly string[],
-): string | undefined {
+): ChatStartupOptions {
   if (
     args.length ===
       0
   ) {
-    return undefined;
+    return {
+      continueLatest:
+        false,
+    };
+  }
+
+  if (
+    args.length ===
+      1 &&
+    (
+      args[0] ===
+        "--continue" ||
+      args[0] ===
+        "-c"
+    )
+  ) {
+    return {
+      continueLatest:
+        true,
+    };
   }
 
   if (
@@ -93,11 +120,17 @@ function parseResumeSessionId(
     ) &&
     args[1]
   ) {
-    return args[1];
+    return {
+      resumeSessionId:
+        args[1],
+
+      continueLatest:
+        false,
+    };
   }
 
   throw new Error(
-    "Usage: tongyu chat [--resume <sessionId>]",
+    "Usage: tongyu chat [--resume <sessionId> | --continue]",
   );
 }
 
@@ -105,8 +138,11 @@ export async function runChatClient(
   args:
     readonly string[] = [],
 ): Promise<void> {
-  const resumeSessionId =
-    parseResumeSessionId(
+  const {
+    resumeSessionId,
+    continueLatest,
+  } =
+    parseChatStartupOptions(
       args,
     );
 
@@ -186,6 +222,16 @@ export async function runChatClient(
 
   let resumedSessionStatus:
     string |
+    undefined;
+
+  let continueCandidate:
+    {
+      sessionId:
+        string;
+
+      updatedAt:
+        number;
+    } |
     undefined;
 
   let busy =
@@ -374,7 +420,120 @@ export async function runChatClient(
                   sessionId:
                     resumeSessionId,
                 });
+              } else if (
+                continueLatest
+              ) {
+                send({
+                  id:
+                    createRequestId(
+                      "req-chat-list",
+                    ),
+
+                  type:
+                    "session.list",
+                });
               } else {
+                send({
+                  id:
+                    createRequestId(
+                      "req-chat-create",
+                    ),
+
+                  type:
+                    "session.create",
+
+                  cwd:
+                    process.cwd(),
+                });
+              }
+
+              continue;
+            }
+
+            if (
+              type ===
+                "session.list.item" &&
+              continueLatest &&
+              !sessionId
+            ) {
+              const candidateSessionId =
+                readString(
+                  event,
+                  "sessionId",
+                );
+
+              const candidateCwd =
+                readString(
+                  event,
+                  "cwd",
+                );
+
+              const candidateStatus =
+                readString(
+                  event,
+                  "status",
+                );
+
+              const updatedAtValue =
+                event.updatedAt;
+
+              if (
+                candidateSessionId &&
+                candidateCwd ===
+                  process.cwd() &&
+                candidateStatus ===
+                  "active" &&
+                typeof updatedAtValue ===
+                  "number" &&
+                (
+                  !continueCandidate ||
+                  updatedAtValue >
+                    continueCandidate.updatedAt
+                )
+              ) {
+                continueCandidate = {
+                  sessionId:
+                    candidateSessionId,
+
+                  updatedAt:
+                    updatedAtValue,
+                };
+              }
+
+              continue;
+            }
+
+            if (
+              type ===
+                "session.list.end" &&
+              continueLatest &&
+              !sessionId
+            ) {
+              if (
+                continueCandidate
+              ) {
+                process.stdout.write(
+                  `Continuing session: ${continueCandidate.sessionId}\n`,
+                );
+
+                send({
+                  id:
+                    createRequestId(
+                      "req-chat-continue",
+                    ),
+
+                  type:
+                    "session.resume",
+
+                  sessionId:
+                    continueCandidate
+                      .sessionId,
+                });
+              } else {
+                process.stdout.write(
+                  "No active session found for this workspace. Creating a new session.\n",
+                );
+
                 send({
                   id:
                     createRequestId(
@@ -901,7 +1060,10 @@ export async function runChatClient(
               );
 
               if (
-                resumeSessionId &&
+                (
+                  resumeSessionId ||
+                  continueLatest
+                ) &&
                 !sessionId
               ) {
                 closing =

@@ -153,8 +153,14 @@ export class SessionManager {
         left,
         right,
       ) =>
-        right.createdAt -
-          left.createdAt,
+        (
+          right.updatedAt -
+            left.updatedAt
+        ) ||
+        (
+          right.createdAt -
+            left.createdAt
+        ),
     );
 
     return sessions;
@@ -303,6 +309,13 @@ export class SessionManager {
       event,
     );
 
+    session.updatedAt =
+      event.timestamp;
+
+    store.save(
+      session,
+    );
+
     return {
       event,
 
@@ -404,6 +417,13 @@ export class SessionManager {
 
     eventStore.append(
       event,
+    );
+
+    session.updatedAt =
+      event.timestamp;
+
+    store.save(
+      session,
     );
 
     return {
@@ -522,6 +542,13 @@ export class SessionManager {
 
     eventStore.append(
       event,
+    );
+
+    session.updatedAt =
+      event.timestamp;
+
+    store.save(
+      session,
     );
 
     return {
@@ -667,6 +694,13 @@ export class SessionManager {
 
     eventStore.append(
       event,
+    );
+
+    session.updatedAt =
+      event.timestamp;
+
+    store.save(
+      session,
     );
 
     return {

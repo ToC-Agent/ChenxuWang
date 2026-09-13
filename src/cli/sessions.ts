@@ -381,6 +381,7 @@ export async function runSessionsClient(): Promise<void> {
       [
         `${session.status.toUpperCase()}  ${session.id}`,
         `  Created: ${formatTime(session.createdAt)} UTC`,
+        `  Updated: ${formatTime(session.updatedAt)} UTC`,
         `  Workspace: ${session.cwd}`,
         "",
       ].join(
