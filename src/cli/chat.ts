@@ -52,6 +52,356 @@ function readString(
       : undefined;
 }
 
+const MAX_PERMISSION_PREVIEW_CHARS =
+  12_000;
+
+function isJsonObject(
+  value: unknown,
+): value is JsonObject {
+  return (
+    typeof value ===
+      "object" &&
+    value !==
+      null &&
+    !Array.isArray(
+      value,
+    )
+  );
+}
+
+function splitPreviewText(
+  value: string,
+): string[] {
+  const normalized =
+    value.replace(
+      /\r\n/g,
+      "\n",
+    );
+
+  const lines =
+    normalized.split(
+      "\n",
+    );
+
+  /*
+   * Avoid drawing a meaningless final prefixed blank line
+   * solely because the replacement ends with "\n".
+   */
+  if (
+    lines.length >
+      1 &&
+    lines[
+      lines.length - 1
+    ] ===
+      ""
+  ) {
+    lines.pop();
+  }
+
+  if (
+    lines.length ===
+      0 ||
+    (
+      lines.length ===
+        1 &&
+      lines[0] ===
+        ""
+    )
+  ) {
+    return [
+      "<empty>",
+    ];
+  }
+
+  return lines;
+}
+
+function appendReplacementPreview(
+  lines: string[],
+  sequence: number,
+  oldText: string,
+  newText: string,
+): void {
+  lines.push(
+    `@@ change ${sequence} @@`,
+  );
+
+  for (
+    const line of
+    splitPreviewText(
+      oldText,
+    )
+  ) {
+    lines.push(
+      `- ${line}`,
+    );
+  }
+
+  for (
+    const line of
+    splitPreviewText(
+      newText,
+    )
+  ) {
+    lines.push(
+      `+ ${line}`,
+    );
+  }
+}
+
+function sanitizePreviewLine(
+  value: string,
+): string {
+  /*
+   * Tool arguments may originate from model output or workspace
+   * content. Never allow terminal control characters such as ESC
+   * to manipulate the user's terminal while rendering a preview.
+   *
+   * Newlines are already split before reaching this function.
+   */
+  return value.replace(
+    /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
+    (
+      character,
+    ) => {
+      const code =
+        character
+          .charCodeAt(
+            0,
+          )
+          .toString(
+            16,
+          )
+          .padStart(
+            4,
+            "0",
+          );
+
+      return `\\u${code}`;
+    },
+  );
+}
+
+function limitPermissionPreview(
+  lines:
+    readonly string[],
+): string[] {
+  const output:
+    string[] =
+      [];
+
+  let used =
+    0;
+
+  for (
+    const rawLine of lines
+  ) {
+    const line =
+      sanitizePreviewLine(
+        rawLine,
+      );
+
+    const cost =
+      line.length +
+      1;
+
+    if (
+      used +
+        cost >
+      MAX_PERMISSION_PREVIEW_CHARS
+    ) {
+      const remaining =
+        MAX_PERMISSION_PREVIEW_CHARS -
+        used;
+
+      if (
+        remaining >
+        1
+      ) {
+        output.push(
+          `${line.slice(
+            0,
+            remaining - 1,
+          )}…`,
+        );
+      }
+
+      output.push(
+        "[preview truncated]",
+      );
+
+      return output;
+    }
+
+    output.push(
+      line,
+    );
+
+    used +=
+      cost;
+  }
+
+  return output;
+}
+
+function createPermissionDetails(
+  permission:
+    PendingPermission,
+): string[] {
+  const fallback = () => [
+    `arguments: ${JSON.stringify(
+      permission.arguments,
+    )}`,
+  ];
+
+  if (
+    permission.toolName !==
+      "filesystem.edit" &&
+    permission.toolName !==
+      "filesystem.patch"
+  ) {
+    return fallback();
+  }
+
+  if (
+    !isJsonObject(
+      permission.arguments,
+    )
+  ) {
+    return fallback();
+  }
+
+  const path =
+    readString(
+      permission.arguments,
+      "path",
+    );
+
+  if (
+    path ===
+    undefined
+  ) {
+    return fallback();
+  }
+
+  const preview:
+    string[] = [
+      `path: ${path}`,
+      "",
+      "Requested change preview (not yet applied):",
+  ];
+
+  if (
+    permission.toolName ===
+    "filesystem.edit"
+  ) {
+    const oldText =
+      readString(
+        permission.arguments,
+        "oldText",
+      );
+
+    const newText =
+      readString(
+        permission.arguments,
+        "newText",
+      );
+
+    if (
+      oldText ===
+        undefined ||
+      newText ===
+        undefined
+    ) {
+      return fallback();
+    }
+
+    appendReplacementPreview(
+      preview,
+      1,
+      oldText,
+      newText,
+    );
+
+    return limitPermissionPreview(
+      preview,
+    );
+  }
+
+  const edits =
+    permission.arguments[
+      "edits"
+    ];
+
+  if (
+    !Array.isArray(
+      edits,
+    ) ||
+    edits.length ===
+      0
+  ) {
+    return fallback();
+  }
+
+  for (
+    let index = 0;
+    index < edits.length;
+    index += 1
+  ) {
+    const edit =
+      edits[index];
+
+    if (
+      !isJsonObject(
+        edit,
+      )
+    ) {
+      return fallback();
+    }
+
+    const oldText =
+      readString(
+        edit,
+        "oldText",
+      );
+
+    const newText =
+      readString(
+        edit,
+        "newText",
+      );
+
+    if (
+      oldText ===
+        undefined ||
+      newText ===
+        undefined
+    ) {
+      return fallback();
+    }
+
+    if (
+      index >
+      0
+    ) {
+      preview.push(
+        "",
+      );
+    }
+
+    appendReplacementPreview(
+      preview,
+      index + 1,
+      oldText,
+      newText,
+    );
+  }
+
+  return limitPermissionPreview(
+    preview,
+  );
+}
+
 function printHelp(): void {
   process.stdout.write(
     [
@@ -939,13 +1289,18 @@ export async function runChatClient(
                   event.arguments,
               };
 
+              const permissionDetails =
+                createPermissionDetails(
+                  pendingPermission,
+                );
+
               process.stdout.write(
                 [
                   "",
                   "[permission requested]",
                   `tool: ${pendingPermission.toolName}`,
                   `permission: ${pendingPermission.permission}`,
-                  `arguments: ${JSON.stringify(pendingPermission.arguments)}`,
+                  ...permissionDetails,
                   "Use /allow or /deny (bare allow/deny also work).",
                   "",
                 ].join(
