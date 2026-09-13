@@ -623,6 +623,131 @@ const WorkspaceChangeSummaryEndEventSchema =
         .nonnegative(),
   }).strict();
 
+const WorkspaceChangeStatusItemEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.status.item",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    path:
+      z.string().min(1),
+
+    state:
+      z.enum([
+        "current",
+        "modified",
+        "missing",
+        "replaced",
+        "unreadable",
+      ]),
+
+    expectedAfterSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    currentSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        )
+        .nullable(),
+
+    expectedAfterBytes:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    currentBytes:
+      z.number()
+        .int()
+        .nonnegative()
+        .nullable(),
+
+    mutationCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    replacementCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    latestSessionEventId:
+      z.string().min(1),
+
+    latestSourceRequestId:
+      RequestIdSchema,
+
+    latestSourceToolName:
+      z.string().min(1),
+  }).strict();
+
+const WorkspaceChangeStatusEndEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.status.end",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    fileCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    currentCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    modifiedCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    missingCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    replacedCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    unreadableCount:
+      z.number()
+        .int()
+        .nonnegative(),
+  }).strict();
+
 const RuntimeErrorEventSchema =
   z.object({
     id:
@@ -774,6 +899,8 @@ export const ServerEventSchema =
       WorkspaceChangeListEndEventSchema,
       WorkspaceChangeSummaryItemEventSchema,
       WorkspaceChangeSummaryEndEventSchema,
+      WorkspaceChangeStatusItemEventSchema,
+      WorkspaceChangeStatusEndEventSchema,
       RuntimeErrorEventSchema,
       SessionEndEventSchema,
     ],

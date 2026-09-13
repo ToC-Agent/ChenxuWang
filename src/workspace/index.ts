@@ -23,3 +23,13 @@ export type {
   WorkspaceChangeRecord,
   WorkspaceChangeSummary,
 } from "./changes.js";
+
+export {
+  inspectWorkspaceChangeStatus,
+} from "./status.js";
+
+export type {
+  WorkspaceChangeFileState,
+  WorkspaceChangeFileStatus,
+  WorkspaceChangeStatusSummary,
+} from "./status.js";
