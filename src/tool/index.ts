@@ -24,6 +24,7 @@ export type {
   ToolErrorCode,
   ToolErrorResult,
   ToolExecutionContext,
+  ToolPreparation,
   ToolResult,
 } from "./types.js";
 

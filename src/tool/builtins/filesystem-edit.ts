@@ -8,6 +8,8 @@ import {
 
 import type {
   Tool,
+  ToolExecutionContext,
+  ToolPreparation,
 } from "../types.js";
 
 import {
@@ -66,10 +68,136 @@ export interface FilesystemEditOutput {
     TextFileChangeSet;
 }
 
+interface FilesystemEditPreparation {
+  beforeContent:
+    string;
+
+  updatedContent:
+    string;
+
+  changeSet:
+    TextFileChangeSet;
+}
+
+async function prepareFilesystemEdit(
+  input:
+    FilesystemEditInput,
+  context:
+    ToolExecutionContext,
+): Promise<
+  ToolPreparation<
+    FilesystemEditPreparation
+  >
+> {
+  const file =
+    await loadExistingWorkspaceTextFile(
+      context.cwd,
+      input.path,
+      "edit",
+    );
+
+  const matchCount =
+    countTextOccurrences(
+      file.content,
+      input.oldText,
+    );
+
+  if (
+    matchCount ===
+    0
+  ) {
+    throw new Error(
+      `oldText was not found in ${input.path}`,
+    );
+  }
+
+  if (
+    matchCount >
+    1
+  ) {
+    throw new Error(
+      `oldText matched ${matchCount} locations in ${input.path}; filesystem.edit requires exactly one match`,
+    );
+  }
+
+  const matchIndex =
+    file.content.indexOf(
+      input.oldText,
+    );
+
+  const updatedContent =
+    file.content.slice(
+      0,
+      matchIndex,
+    ) +
+    input.newText +
+    file.content.slice(
+      matchIndex +
+        input.oldText.length,
+    );
+
+  const change =
+    createTextReplacementChange({
+      sequence:
+        1,
+
+      startLine:
+        getTextStartLine(
+          file.content,
+          matchIndex,
+        ),
+
+      oldText:
+        input.oldText,
+
+      newText:
+        input.newText,
+    });
+
+  const changeSet =
+    createTextFileChangeSet({
+      path:
+        file.relativePath,
+
+      beforeContent:
+        file.content,
+
+      afterContent:
+        updatedContent,
+
+      changes: [
+        change,
+      ],
+    });
+
+  return {
+    data: {
+      beforeContent:
+        file.content,
+
+      updatedContent,
+
+      changeSet,
+    },
+
+    /*
+     * This is permission-display metadata only.
+     * It is not passed back through the strict input schema.
+     */
+    permissionArguments: {
+      ...input,
+
+      expectedBeforeSha256:
+        changeSet.beforeSha256,
+    },
+  };
+}
+
 export const filesystemEditTool:
   Tool<
     FilesystemEditInput,
-    FilesystemEditOutput
+    FilesystemEditOutput,
+    FilesystemEditPreparation
   > = {
     name:
       "filesystem.edit",
@@ -83,107 +211,66 @@ export const filesystemEditTool:
     inputSchema:
       FilesystemEditInputSchema,
 
+    prepare:
+      prepareFilesystemEdit,
+
     async execute(
       input,
       context,
+      preparation,
     ) {
-      const file =
+      /*
+       * Keep direct tool.execute() backwards-compatible for
+       * internal tests and non-ToolExecutor callers.
+       */
+      const prepared =
+        preparation ??
+        (
+          await prepareFilesystemEdit(
+            input,
+            context,
+          )
+        ).data;
+
+      /*
+       * Re-read AFTER permission was granted.
+       *
+       * If anything changed while the user was reviewing the
+       * preview, reject rather than applying a stale plan.
+       */
+      const currentFile =
         await loadExistingWorkspaceTextFile(
           context.cwd,
           input.path,
           "edit",
         );
 
-      const matchCount =
-        countTextOccurrences(
-          file.content,
-          input.oldText,
-        );
-
       if (
-        matchCount ===
-        0
+        currentFile.content !==
+        prepared.beforeContent
       ) {
         throw new Error(
-          `oldText was not found in ${input.path}`,
+          `File changed after permission preview; refusing stale edit: ${input.path}`,
         );
       }
-
-      if (
-        matchCount >
-        1
-      ) {
-        throw new Error(
-          `oldText matched ${matchCount} locations in ${input.path}; filesystem.edit requires exactly one match`,
-        );
-      }
-
-      const matchIndex =
-        file.content.indexOf(
-          input.oldText,
-        );
-
-      const updatedContent =
-        file.content.slice(
-          0,
-          matchIndex,
-        ) +
-        input.newText +
-        file.content.slice(
-          matchIndex +
-            input.oldText.length,
-        );
-
-      const change =
-        createTextReplacementChange({
-          sequence:
-            1,
-
-          startLine:
-            getTextStartLine(
-              file.content,
-              matchIndex,
-            ),
-
-          oldText:
-            input.oldText,
-
-          newText:
-            input.newText,
-        });
-
-      const changeSet =
-        createTextFileChangeSet({
-          path:
-            file.relativePath,
-
-          beforeContent:
-            file.content,
-
-          afterContent:
-            updatedContent,
-
-          changes: [
-            change,
-          ],
-        });
 
       const bytes =
         await writeWorkspaceTextFileAtomic(
-          file,
-          updatedContent,
+          currentFile,
+          prepared.updatedContent,
         );
 
       return {
         path:
-          file.relativePath,
+          currentFile.relativePath,
 
         bytes,
 
         replacements:
           1,
 
-        changeSet,
+        changeSet:
+          prepared.changeSet,
       };
     },
   };

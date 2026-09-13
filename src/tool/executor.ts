@@ -147,17 +147,87 @@ export class ToolExecutor {
       );
     }
 
+    /*
+     * --------------------------------------------------
+     * Preparation phase
+     * --------------------------------------------------
+     *
+     * A tool may inspect the current state and build a
+     * mutation plan before the user grants permission.
+     *
+     * prepare() MUST NOT perform the requested mutation.
+     */
+    let preparedData:
+      unknown;
+
+    let permissionCall:
+      ToolCall =
+        call;
+
+    if (
+      tool.prepare
+    ) {
+      try {
+        const preparation =
+          await tool.prepare(
+            parsed.data,
+            context,
+          );
+
+        preparedData =
+          preparation.data;
+
+        if (
+          preparation
+            .permissionArguments
+        ) {
+          /*
+           * Only the authorization request sees these enriched
+           * arguments. The original ToolCall remains untouched.
+           */
+          permissionCall = {
+            ...call,
+
+            arguments:
+              preparation
+                .permissionArguments,
+          };
+        }
+      } catch (error) {
+        if (
+          context.signal?.aborted
+        ) {
+          return createAbortedResult(
+            call,
+          );
+        }
+
+        return createErrorResult(
+          call,
+          "TOOL_EXECUTION_FAILED",
+          `Tongyu tool preparation failed: ${call.name}: ${errorMessage(error)}`,
+        );
+      }
+    }
+
+    if (
+      context.signal?.aborted
+    ) {
+      return createAbortedResult(
+        call,
+      );
+    }
+
     const permissionDecision =
       await this.permissionPolicy
         .authorize({
           tool,
-          call,
+          call:
+            permissionCall,
           context,
         });
 
     /*
-     * Important:
-     *
      * control.interrupt may have happened while
      * authorize() was waiting for permission.response.
      */
@@ -192,6 +262,7 @@ export class ToolExecutor {
         await tool.execute(
           parsed.data,
           context,
+          preparedData,
         );
 
       if (

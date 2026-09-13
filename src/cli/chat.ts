@@ -284,12 +284,30 @@ function createPermissionDetails(
     return fallback();
   }
 
+  const expectedBeforeSha256 =
+    readString(
+      permission.arguments,
+      "expectedBeforeSha256",
+    );
+
   const preview:
     string[] = [
       `path: ${path}`,
       "",
-      "Requested change preview (not yet applied):",
+      expectedBeforeSha256
+        ? "Prepared change preview (not yet applied):"
+        : "Requested change preview (not yet applied):",
   ];
+
+  if (
+    expectedBeforeSha256
+  ) {
+    preview.splice(
+      1,
+      0,
+      `before sha256: ${expectedBeforeSha256}`,
+    );
+  }
 
   if (
     permission.toolName ===
