@@ -3,12 +3,16 @@ import {
 } from "node:crypto";
 
 import {
-  spawn,
-} from "node:child_process";
-
-import {
   createInterface,
 } from "node:readline";
+
+import {
+  StdioRuntimeClient,
+} from "../client/index.js";
+
+import {
+  ClientMessageSchema,
+} from "../protocol/index.js";
 
 type JsonObject =
   Record<
@@ -576,45 +580,32 @@ export async function runChatClient(
     );
   }
 
-  const child =
-    spawn(
-      process.execPath,
-      [
+  const runtimeClient =
+    StdioRuntimeClient.spawn({
+      command:
+        process.execPath,
+
+      args: [
         cliEntry,
         "server",
       ],
-      {
-        env:
-          process.env,
 
-        stdio: [
-          "pipe",
-          "pipe",
-          "pipe",
-        ],
-      },
-    );
+      cwd:
+        process.cwd(),
 
-  child.stderr.on(
-    "data",
+      env:
+        process.env,
+    });
+
+  runtimeClient.onStderr(
     (
-      chunk:
-        Buffer,
+      chunk,
     ) => {
       process.stderr.write(
         chunk,
       );
     },
   );
-
-  const serverLines =
-    createInterface({
-      input:
-        child.stdout,
-
-      crlfDelay:
-        Infinity,
-    });
 
   const input =
     createInterface({
@@ -634,6 +625,29 @@ export async function runChatClient(
   input.setPrompt(
     "you> ",
   );
+
+  let inputClosed =
+    false;
+
+  input.once(
+    "close",
+    () => {
+      inputClosed =
+        true;
+    },
+  );
+
+  /*
+   * readline starts consuming stdin immediately.
+   *
+   * Create the async iterator now, before awaiting Runtime
+   * startup, so piped input is queued rather than lost while
+   * session initialization is still in progress.
+   */
+  const inputLines =
+    input[
+      Symbol.asyncIterator
+    ]();
 
   let sessionId:
     string |
@@ -700,23 +714,18 @@ export async function runChatClient(
     message:
       JsonObject,
   ): void {
-    if (
-      child.stdin.destroyed
-    ) {
-      throw new Error(
-        "Tongyu server stdin is closed.",
-      );
-    }
-
-    child.stdin.write(
-      `${JSON.stringify(message)}\n`,
+    runtimeClient.send(
+      ClientMessageSchema.parse(
+        message,
+      ),
     );
   }
 
   function prompt(): void {
     if (
       closing ||
-      busy
+      busy ||
+      inputClosed
     ) {
       return;
     }
@@ -737,82 +746,33 @@ export async function runChatClient(
     }
   }
 
-  const exitPromise =
-    new Promise<
-      number | null
-    >(
-      (
-        resolve,
-        reject,
-      ) => {
-        child.once(
-          "error",
-          reject,
-        );
+  runtimeClient.onError(
+    (
+      error,
+    ) => {
+      finishAssistantStream();
 
-        child.once(
-          "exit",
-          (
-            code,
-          ) => {
-            resolve(
-              code,
-            );
-          },
-        );
-      },
-    );
+      process.stderr.write(
+        `[tongyu-chat] runtime client error: ${error.message}\n`,
+      );
+
+      readyReject?.(
+        error,
+      );
+    },
+  );
 
   const serverTask =
     (
       async () => {
         try {
           for await (
-            const line
-            of serverLines
+            const serverEvent of
+              runtimeClient.events()
           ) {
-            if (
-              !line.trim()
-            ) {
-              continue;
-            }
-
-            let event:
-              JsonObject;
-
-            try {
-              const parsed:
-                unknown =
-                JSON.parse(
-                  line,
-                );
-
-              if (
-                typeof parsed !==
-                  "object" ||
-                parsed ===
-                  null ||
-                Array.isArray(
-                  parsed,
-                )
-              ) {
-                throw new Error(
-                  "server event is not an object",
-                );
-              }
-
-              event =
-                parsed as
-                  JsonObject;
-            } catch (error) {
-              finishAssistantStream();
-
-              process.stderr.write(
-                `[tongyu-chat] invalid server event: ${String(error)}\n`,
-              );
-
-              continue;
-            }
+            const event =
+              serverEvent as unknown as
+                JsonObject;
 
             const type =
               readString(
@@ -1107,7 +1067,7 @@ export async function runChatClient(
 
                 input.close();
 
-                child.stdin.end();
+                runtimeClient.endInput();
 
                 continue;
               }
@@ -1574,7 +1534,7 @@ export async function runChatClient(
                 ),
               );
 
-              input.prompt();
+              prompt();
 
               continue;
             }
@@ -1698,7 +1658,7 @@ export async function runChatClient(
 
                 input.close();
 
-                child.stdin.end();
+                runtimeClient.endInput();
               }
 
               continue;
@@ -1719,7 +1679,7 @@ export async function runChatClient(
 
               input.close();
 
-              child.stdin.end();
+              runtimeClient.endInput();
 
               continue;
             }
@@ -1778,17 +1738,17 @@ export async function runChatClient(
   ) {
     await serverTask;
 
-    const exitCode =
-      await exitPromise;
+    const exit =
+      await runtimeClient.waitForExit();
 
     if (
-      exitCode !==
+      exit.code !==
         0 &&
-      exitCode !==
+      exit.code !==
         null
     ) {
       throw new Error(
-        `Tongyu server exited with code ${exitCode}.`,
+        `Tongyu server exited with code ${exit.code}.`,
       );
     }
 
@@ -1800,7 +1760,7 @@ export async function runChatClient(
   try {
     for await (
       const line
-      of input
+      of inputLines
     ) {
       const rawInput =
         line.trim();
@@ -2141,7 +2101,7 @@ export async function runChatClient(
 
         input.close();
 
-        child.stdin.end();
+        runtimeClient.endInput();
 
         break;
       }
@@ -2158,7 +2118,7 @@ export async function runChatClient(
 
           input.close();
 
-          child.stdin.end();
+          runtimeClient.endInput();
 
           break;
         }
@@ -2198,7 +2158,7 @@ export async function runChatClient(
           "A permission decision is pending. Use /allow, /deny, or /stop.\n",
         );
 
-        input.prompt();
+        prompt();
 
         continue;
       }
@@ -2244,29 +2204,29 @@ export async function runChatClient(
   } finally {
     if (
       !closing &&
-      !child.stdin.destroyed
+      !runtimeClient.closed
     ) {
       /*
        * Ctrl-D / stdin close:
        * do not leave a child server behind.
        */
-      child.stdin.end();
+      runtimeClient.endInput();
     }
   }
 
   await serverTask;
 
-  const exitCode =
-    await exitPromise;
+  const exit =
+    await runtimeClient.waitForExit();
 
   if (
-    exitCode !==
+    exit.code !==
       0 &&
-    exitCode !==
+    exit.code !==
       null
   ) {
     throw new Error(
-      `Tongyu server exited with code ${exitCode}.`,
+      `Tongyu server exited with code ${exit.code}.`,
     );
   }
 }

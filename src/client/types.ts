@@ -49,6 +49,9 @@ export interface RuntimeClient {
       RuntimeClientStderrListener,
   ): () => void;
 
+  events():
+    AsyncIterable<ServerEvent>;
+
   waitForExit():
     Promise<RuntimeClientExit>;
 

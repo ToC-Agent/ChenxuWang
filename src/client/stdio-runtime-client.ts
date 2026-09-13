@@ -81,13 +81,35 @@ export class StdioRuntimeClient
       RuntimeClientStderrListener
     >();
 
+  readonly #eventQueue:
+    ServerEvent[] =
+      [];
+
   readonly #exitPromise:
     Promise<RuntimeClientExit>;
 
   readonly #readerTask:
     Promise<void>;
 
+  #eventWaiter:
+    (
+      (
+        event:
+          ServerEvent | null,
+      ) => void
+    ) |
+    undefined;
+
+  #eventStreamClaimed =
+    false;
+
+  #eventStreamEnded =
+    false;
+
   #closed =
+    false;
+
+  #inputEnded =
     false;
 
   #closePromise:
@@ -176,6 +198,8 @@ export class StdioRuntimeClient
               this.#closed =
                 true;
 
+              this.#finishEventStream();
+
               this.#emitError(
                 error,
               );
@@ -228,10 +252,11 @@ export class StdioRuntimeClient
   ): void {
     if (
       this.#closed ||
+      this.#inputEnded ||
       this.#child.stdin.destroyed
     ) {
       throw new Error(
-        "Tongyu runtime client is closed.",
+        "Tongyu runtime client input is closed.",
       );
     }
 
@@ -292,6 +317,83 @@ export class StdioRuntimeClient
     };
   }
 
+  async *events():
+    AsyncIterable<ServerEvent> {
+    if (
+      this.#eventStreamClaimed
+    ) {
+      throw new Error(
+        "Tongyu runtime client event stream already has an active consumer.",
+      );
+    }
+
+    this.#eventStreamClaimed =
+      true;
+
+    try {
+      while (
+        true
+      ) {
+        const event =
+          await this.#nextStreamEvent();
+
+        if (
+          event ===
+            null
+        ) {
+          return;
+        }
+
+        yield event;
+      }
+    } finally {
+      this.#eventStreamClaimed =
+        false;
+
+      this.#eventQueue.length =
+        0;
+
+      if (
+        this.#eventWaiter
+      ) {
+        const waiter =
+          this.#eventWaiter;
+
+        this.#eventWaiter =
+          undefined;
+
+        waiter(
+          null,
+        );
+      }
+    }
+  }
+
+  /*
+   * Half-close the stdio transport without waiting for process exit.
+   *
+   * The Tongyu server treats stdin EOF as the signal to finish its
+   * own cleanup and terminate. CLI event handlers need this form
+   * because they may still be consuming stdout events at the time.
+   */
+  endInput(): void {
+    if (
+      this.#closed ||
+      this.#inputEnded
+    ) {
+      return;
+    }
+
+    this.#inputEnded =
+      true;
+
+    if (
+      !this.#child.stdin.destroyed
+    ) {
+      this.#child.stdin.end();
+    }
+  }
+
   waitForExit():
     Promise<RuntimeClientExit> {
     return this.#exitPromise;
@@ -313,12 +415,7 @@ export class StdioRuntimeClient
 
   async #closeInternal():
     Promise<RuntimeClientExit> {
-    if (
-      !this.#closed &&
-      !this.#child.stdin.destroyed
-    ) {
-      this.#child.stdin.end();
-    }
+    this.endInput();
 
     const [
       ,
@@ -330,6 +427,64 @@ export class StdioRuntimeClient
       ]);
 
     return exit;
+  }
+
+  #nextStreamEvent():
+    Promise<
+      ServerEvent | null
+    > {
+    const queued =
+      this.#eventQueue.shift();
+
+    if (
+      queued
+    ) {
+      return Promise.resolve(
+        queued,
+      );
+    }
+
+    if (
+      this.#eventStreamEnded
+    ) {
+      return Promise.resolve(
+        null,
+      );
+    }
+
+    return new Promise(
+      (
+        resolve,
+      ) => {
+        this.#eventWaiter =
+          resolve;
+      },
+    );
+  }
+
+  #finishEventStream(): void {
+    if (
+      this.#eventStreamEnded
+    ) {
+      return;
+    }
+
+    this.#eventStreamEnded =
+      true;
+
+    if (
+      this.#eventWaiter
+    ) {
+      const waiter =
+        this.#eventWaiter;
+
+      this.#eventWaiter =
+        undefined;
+
+      waiter(
+        null,
+      );
+    }
   }
 
   async #readServerEvents():
@@ -393,6 +548,8 @@ export class StdioRuntimeClient
       this.#emitError(
         error,
       );
+    } finally {
+      this.#finishEventStream();
     }
   }
 
@@ -400,6 +557,29 @@ export class StdioRuntimeClient
     event:
       ServerEvent,
   ): void {
+    if (
+      this.#eventStreamClaimed &&
+      !this.#eventStreamEnded
+    ) {
+      if (
+        this.#eventWaiter
+      ) {
+        const waiter =
+          this.#eventWaiter;
+
+        this.#eventWaiter =
+          undefined;
+
+        waiter(
+          event,
+        );
+      } else {
+        this.#eventQueue.push(
+          event,
+        );
+      }
+    }
+
     for (
       const listener of
         this.#eventListeners
