@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Tongyu</title>
+
+  <link
+    rel="stylesheet"
+    href="./styles.css"
+  />
+</head>
+
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <div class="brand">
+          TONGYU
+        </div>
+
+        <div class="subtitle">
+          Native Desktop Agent
+        </div>
+      </div>
+
+      <div class="runtime">
+        <span
+          id="runtime-dot"
+          class="runtime-dot"
+        ></span>
+
+        <span
+          id="runtime-state"
+          data-runtime-state
+        >
+          connecting
+        </span>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-title">
+          Workspace
+        </div>
+
+        <div class="placeholder">
+          Sessions
+        </div>
+
+        <div class="placeholder">
+          Changes
+        </div>
+      </aside>
+
+      <section class="agent">
+        <div class="agent-empty">
+          <div class="agent-title">
+            Tongyu Desktop
+          </div>
+
+          <div class="agent-description">
+            Runtime Client 已连接到本地 Tongyu Agent Runtime。
+          </div>
+
+          <button
+            id="restart-runtime"
+            type="button"
+          >
+            Restart Runtime
+          </button>
+
+          <pre
+            id="runtime-details"
+          ></pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script
+    src="./renderer.js"
+  ></script>
+</body>
+</html>

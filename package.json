@@ -2,13 +2,15 @@
   "name": "tongyu",
   "version": "0.1.0",
   "description": "Tongyu local desktop agent runtime",
-  "main": "index.js",
+  "main": "dist/desktop-app/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "desktop": "npm run build && electron .",
+    "desktop:smoke": "npm run build && electron . --smoke"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.13.4",
+    "electron": "^44.3.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   },
