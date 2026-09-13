@@ -491,6 +491,45 @@ export async function runStdioServer(
       return;
     }
 
+    if (
+      agentEvent.type ===
+      "workspace.change"
+    ) {
+      writeEvent({
+        id:
+          createEventId(),
+
+        type:
+          "workspace.change",
+
+        timestamp:
+          Date.now(),
+
+        requestId:
+          agentEvent.requestId,
+
+        sessionId:
+          agentEvent.sessionId,
+
+        sessionEventId:
+          agentEvent.sessionEventId,
+
+        toolCallId:
+          agentEvent.toolCallId,
+
+        sourceToolName:
+          agentEvent.sourceToolName,
+
+        changeSet:
+          agentEvent.changeSet,
+
+        replayed:
+          agentEvent.replayed,
+      });
+
+      return;
+    }
+
     writeEvent({
       id:
         createEventId(),

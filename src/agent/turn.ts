@@ -1,3 +1,7 @@
+import {
+  extractTextFileChangeSet,
+} from "../workspace/index.js";
+
 import type {
   ModelFinishReason,
   ModelProvider,
@@ -599,6 +603,46 @@ export class AgentTurn {
                 true,
             };
 
+            const existingResultChangeSet =
+              !(
+                existingResult.isError ??
+                false
+              )
+                ? extractTextFileChangeSet(
+                    existingResult.result,
+                  )
+                : undefined;
+
+            if (
+              existingResultChangeSet
+            ) {
+              yield {
+                type:
+                  "workspace.change",
+
+                sessionId:
+                  roundSnapshot.session.id,
+
+                requestId:
+                  input.requestId,
+
+                sessionEventId:
+                  existingResult.id,
+
+                toolCallId:
+                  existingResult.toolCallId,
+
+                sourceToolName:
+                  call.name,
+
+                changeSet:
+                  existingResultChangeSet,
+
+                replayed:
+                  true,
+              };
+            }
+
             continue;
           }
 
@@ -658,6 +702,46 @@ export class AgentTurn {
             replayed:
               recordedResult.replayed,
           };
+          const recordedResultChangeSet =
+            !(
+              recordedResult.event.isError ??
+              false
+            )
+              ? extractTextFileChangeSet(
+                  recordedResult.event.result,
+                )
+              : undefined;
+
+          if (
+            recordedResultChangeSet
+          ) {
+            yield {
+              type:
+                "workspace.change",
+
+              sessionId:
+                roundSnapshot.session.id,
+
+              requestId:
+                input.requestId,
+
+              sessionEventId:
+                recordedResult.event.id,
+
+              toolCallId:
+                recordedResult.event.toolCallId,
+
+              sourceToolName:
+                call.name,
+
+              changeSet:
+                recordedResultChangeSet,
+
+              replayed:
+                recordedResult.replayed,
+            };
+          }
+
         }
 
         /*

@@ -1318,6 +1318,54 @@ export async function runChatClient(
 
             if (
               type ===
+                "workspace.change"
+            ) {
+              finishAssistantStream();
+
+              const changeSet =
+                event[
+                  "changeSet"
+                ];
+
+              if (
+                isJsonObject(
+                  changeSet,
+                )
+              ) {
+                const path =
+                  readString(
+                    changeSet,
+                    "path",
+                  ) ??
+                  "unknown";
+
+                const changes =
+                  changeSet[
+                    "changes"
+                  ];
+
+                const changeCount =
+                  Array.isArray(
+                    changes,
+                  )
+                    ? changes.length
+                    : 0;
+
+                process.stdout.write(
+                  `[change] ${path} (${changeCount} ${
+                    changeCount ===
+                      1
+                      ? "change"
+                      : "changes"
+                  })\n`,
+                );
+              }
+
+              continue;
+            }
+
+            if (
+              type ===
                 "permission.request"
             ) {
               finishAssistantStream();

@@ -1,3 +1,7 @@
+import type {
+  TextFileChangeSet,
+} from "../workspace/index.js";
+
 export interface AgentTurnInput {
   sessionId:
     string;
@@ -76,6 +80,32 @@ export type AgentTurnEvent =
       replayed:
         boolean;
     }
+  | {
+      type:
+        "workspace.change";
+
+      sessionId:
+        string;
+
+      requestId:
+        string;
+
+      sessionEventId:
+        string;
+
+      toolCallId:
+        string;
+
+      sourceToolName:
+        string;
+
+      changeSet:
+        TextFileChangeSet;
+
+      replayed:
+        boolean;
+    }
+
   | {
       type:
         "assistant.message";

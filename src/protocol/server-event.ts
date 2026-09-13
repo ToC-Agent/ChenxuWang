@@ -1,4 +1,8 @@
 import {
+  TextFileChangeSetSchema,
+} from "../workspace/index.js";
+
+import {
   z,
 } from "zod";
 
@@ -422,6 +426,41 @@ const ToolResultEventSchema =
         .optional(),
   }).strict();
 
+const WorkspaceChangeEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    sessionEventId:
+      z.string().min(1),
+
+    toolCallId:
+      z.string().min(1),
+
+    sourceToolName:
+      z.string().min(1),
+
+    changeSet:
+      TextFileChangeSetSchema,
+
+    replayed:
+      z.boolean(),
+  }).strict();
+
 const RuntimeErrorEventSchema =
   z.object({
     id:
@@ -568,6 +607,7 @@ export const ServerEventSchema =
       PermissionRequestEventSchema,
       ToolCallEventSchema,
       ToolResultEventSchema,
+      WorkspaceChangeEventSchema,
       RuntimeErrorEventSchema,
       SessionEndEventSchema,
     ],

@@ -5,9 +5,9 @@ export {
   createTextReplacementChange,
   extractTextFileChangeSet,
   getTextStartLine,
-} from "../../workspace/change-set.js";
+} from "./change-set.js";
 
 export type {
   TextFileChangeSet,
   TextReplacementChange,
-} from "../../workspace/change-set.js";
+} from "./change-set.js";
