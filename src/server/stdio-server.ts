@@ -1,4 +1,8 @@
 import {
+  TongyuNativeRuntime,
+} from "../agent-runtime/index.js";
+
+import {
   InteractiveToolPermissionPolicy,
 } from "./interactive-permission-policy.js";
 import type {
@@ -181,6 +185,11 @@ export async function runStdioServer(
       sessionManager,
       toolRegistry,
       permissionPolicy,
+    );
+
+  const agentRuntime =
+    new TongyuNativeRuntime(
+      agentTurn,
     );
 
   let initialized =
@@ -701,7 +710,7 @@ export async function runStdioServer(
     try {
       for await (
         const agentEvent of
-          agentTurn.stream({
+          agentRuntime.stream({
             sessionId,
             requestId,
 
