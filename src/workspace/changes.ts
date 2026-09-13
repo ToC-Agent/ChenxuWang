@@ -39,6 +39,20 @@ export interface WorkspaceChangeFileSummary {
   reviewState:
     WorkspaceReviewState;
 
+  reviewSessionEventId:
+    string | null;
+
+  reviewRequestId:
+    string | null;
+
+  reviewedAt:
+    number | null;
+
+  revertAction:
+    | "restored"
+    | "deleted"
+    | null;
+
   /*
    * Number of successful workspace mutation events
    * affecting this file.
@@ -293,6 +307,18 @@ export function summarizeWorkspaceChanges(
       existing.reviewState =
         "pending";
 
+      existing.reviewSessionEventId =
+        null;
+
+      existing.reviewRequestId =
+        null;
+
+      existing.reviewedAt =
+        null;
+
+      existing.revertAction =
+        null;
+
       continue;
     }
 
@@ -304,6 +330,18 @@ export function summarizeWorkspaceChanges(
 
         reviewState:
           "pending",
+
+        reviewSessionEventId:
+          null,
+
+        reviewRequestId:
+          null,
+
+        reviewedAt:
+          null,
+
+        revertAction:
+          null,
 
         mutationCount:
           1,
@@ -375,6 +413,19 @@ export function summarizeWorkspaceChanges(
 
     file.reviewState =
       event.decision;
+
+    file.reviewSessionEventId =
+      event.id;
+
+    file.reviewRequestId =
+      event.requestId;
+
+    file.reviewedAt =
+      event.timestamp;
+
+    file.revertAction =
+      event.revertAction ??
+      null;
   }
 
   const files =

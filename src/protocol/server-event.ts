@@ -865,6 +865,184 @@ const WorkspaceChangeReviewedEventSchema =
       z.boolean(),
   }).strict();
 
+const WorkspaceReviewItemEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.review.item",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    path:
+      z.string().min(1),
+
+    reviewState:
+      z.enum([
+        "pending",
+        "accepted",
+        "reverted",
+      ]),
+
+    diskState:
+      z.enum([
+        "current",
+        "modified",
+        "missing",
+        "replaced",
+        "unreadable",
+      ]),
+
+    reviewSessionEventId:
+      z.string()
+        .min(1)
+        .nullable(),
+
+    reviewRequestId:
+      RequestIdSchema
+        .nullable(),
+
+    reviewedAt:
+      TimestampSchema
+        .nullable(),
+
+    revertAction:
+      z.enum([
+        "restored",
+        "deleted",
+      ])
+        .nullable(),
+
+    mutationCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    replacementCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    firstBeforeSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    firstBeforeBytes:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    latestAfterSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    latestAfterBytes:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    currentSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        )
+        .nullable(),
+
+    currentBytes:
+      z.number()
+        .int()
+        .nonnegative()
+        .nullable(),
+
+    latestSessionEventId:
+      z.string().min(1),
+
+    latestSourceRequestId:
+      RequestIdSchema,
+
+    latestSourceToolName:
+      z.string().min(1),
+  }).strict();
+
+const WorkspaceReviewListEndEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.review.list.end",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    fileCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    pendingCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    acceptedCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    revertedCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    currentCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    modifiedCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    missingCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    replacedCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    unreadableCount:
+      z.number()
+        .int()
+        .nonnegative(),
+  }).strict();
+
 const RuntimeErrorEventSchema =
   z.object({
     id:
@@ -1020,6 +1198,8 @@ export const ServerEventSchema =
       WorkspaceChangeStatusEndEventSchema,
       WorkspaceChangeRevertedEventSchema,
       WorkspaceChangeReviewedEventSchema,
+      WorkspaceReviewItemEventSchema,
+      WorkspaceReviewListEndEventSchema,
       RuntimeErrorEventSchema,
       SessionEndEventSchema,
     ],

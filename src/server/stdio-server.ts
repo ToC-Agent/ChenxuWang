@@ -1110,6 +1110,196 @@ export async function runStdioServer(
     }
     if (
       message.type ===
+        "workspace.review.list"
+    ) {
+      try {
+        const snapshot =
+          sessionManager.resume(
+            message.sessionId,
+          );
+
+        const status =
+          await inspectWorkspaceChangeStatus(
+            snapshot.session.cwd,
+            snapshot.events,
+            {
+              ...(
+                message.sourceRequestId
+                  ? {
+                      sourceRequestId:
+                        message.sourceRequestId,
+                    }
+                  : {}
+              ),
+
+              ...(
+                message.path
+                  ? {
+                      path:
+                        message.path,
+                    }
+                  : {}
+              ),
+            },
+          );
+
+        let pendingCount =
+          0;
+
+        let acceptedCount =
+          0;
+
+        let revertedCount =
+          0;
+
+        for (
+          const file of
+            status.files
+        ) {
+          switch (
+            file.reviewState
+          ) {
+            case "pending":
+              pendingCount +=
+                1;
+              break;
+
+            case "accepted":
+              acceptedCount +=
+                1;
+              break;
+
+            case "reverted":
+              revertedCount +=
+                1;
+              break;
+          }
+
+          writeEvent({
+            id:
+              createEventId(),
+
+            type:
+              "workspace.review.item",
+
+            timestamp:
+              Date.now(),
+
+            requestId:
+              message.id,
+
+            sessionId:
+              snapshot.session.id,
+
+            path:
+              file.path,
+
+            reviewState:
+              file.reviewState,
+
+            diskState:
+              file.state,
+
+            reviewSessionEventId:
+              file.reviewSessionEventId,
+
+            reviewRequestId:
+              file.reviewRequestId,
+
+            reviewedAt:
+              file.reviewedAt,
+
+            revertAction:
+              file.revertAction,
+
+            mutationCount:
+              file.mutationCount,
+
+            replacementCount:
+              file.replacementCount,
+
+            firstBeforeSha256:
+              file.firstBeforeSha256,
+
+            firstBeforeBytes:
+              file.firstBeforeBytes,
+
+            latestAfterSha256:
+              file.latestAfterSha256,
+
+            latestAfterBytes:
+              file.latestAfterBytes,
+
+            currentSha256:
+              file.currentSha256,
+
+            currentBytes:
+              file.currentBytes,
+
+            latestSessionEventId:
+              file.latestSessionEventId,
+
+            latestSourceRequestId:
+              file.latestSourceRequestId,
+
+            latestSourceToolName:
+              file.latestSourceToolName,
+          });
+        }
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "workspace.review.list.end",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          fileCount:
+            status.fileCount,
+
+          pendingCount,
+
+          acceptedCount,
+
+          revertedCount,
+
+          currentCount:
+            status.currentCount,
+
+          modifiedCount:
+            status.modifiedCount,
+
+          missingCount:
+            status.missingCount,
+
+          replacedCount:
+            status.replacedCount,
+
+          unreadableCount:
+            status.unreadableCount,
+        });
+      } catch (error) {
+        writeTurnError(
+          error,
+          message.id,
+          message.sessionId,
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
         "workspace.changes.accept"
     ) {
       try {
