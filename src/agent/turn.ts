@@ -25,7 +25,7 @@ import {
   AgentTurnInterruptedError,} from "./errors.js";
 
 import {
-  sessionEventsToModelMessages,
+  sessionEventsToNativeModelMessages,
 } from "./history.js";
 
 import {
@@ -299,7 +299,7 @@ export class AgentTurn {
       }
 
       const messages =
-        sessionEventsToModelMessages(
+        sessionEventsToNativeModelMessages(
           roundSnapshot.events,
         );
 

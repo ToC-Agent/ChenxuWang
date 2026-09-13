@@ -129,3 +129,32 @@ export function sessionEventsToModelMessages(
 
   return messages;
 }
+
+import {
+  TONGYU_NATIVE_SYSTEM_POLICY,
+} from "./system-policy.js";
+
+/**
+ * Build the complete model-visible history for Tongyu's native runtime.
+ *
+ * The system policy is runtime configuration and is deliberately not
+ * persisted as a SessionEvent.
+ */
+export function sessionEventsToNativeModelMessages(
+  events:
+    readonly SessionEvent[],
+): ModelMessage[] {
+  return [
+    {
+      role:
+        "system",
+
+      content:
+        TONGYU_NATIVE_SYSTEM_POLICY,
+    },
+
+    ...sessionEventsToModelMessages(
+      events,
+    ),
+  ];
+}

@@ -21,3 +21,8 @@ export type {
 export {
   toolsToModelDefinitions,
 } from "./tool-definitions.js";
+
+export {
+  TONGYU_NATIVE_SYSTEM_POLICY,
+} from "./system-policy.js";
+
