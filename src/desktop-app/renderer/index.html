@@ -46,16 +46,41 @@
 
     <section class="workspace">
       <aside class="sidebar">
-        <div class="sidebar-title">
-          Workspace
+        <div class="sidebar-heading">
+          <div class="sidebar-title">
+            Sessions
+          </div>
+
+          <button
+            id="new-session"
+            class="sidebar-action"
+            type="button"
+            title="New session"
+          >
+            +
+          </button>
         </div>
 
-        <div class="placeholder">
-          Sessions
+        <div
+          id="session-list"
+          class="session-list"
+        ></div>
+
+        <div
+          id="session-empty"
+          class="session-empty"
+        >
+          No sessions yet.
         </div>
 
-        <div class="placeholder">
-          Changes
+        <div class="sidebar-section">
+          <div class="sidebar-title">
+            Changes
+          </div>
+
+          <div class="placeholder">
+            Workspace review
+          </div>
         </div>
       </aside>
 

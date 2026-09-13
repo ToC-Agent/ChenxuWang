@@ -40,6 +40,11 @@ let runtimeHost:
 let allowQuit =
   false;
 
+let activeSessionId:
+  string | null =
+    null;
+
+
 function serializeRuntimeStatus(
   snapshot:
     DesktopRuntimeHostSnapshot,
@@ -181,9 +186,145 @@ function registerDesktopIpc(): void {
 
       await runtimeHost.stop();
 
+      activeSessionId =
+        null;
+
       await runtimeHost.start();
 
       return currentRuntimeStatus();
+    },
+  );
+
+  ipcMain.handle(
+    "tongyu:sessions:list",
+    async () => {
+      if (
+        !runtimeHost
+      ) {
+        throw new Error(
+          "Tongyu Runtime Host is not initialized.",
+        );
+      }
+
+      const result =
+        await runtimeHost
+          .requireClient()
+          .listSessions();
+
+      return {
+        items:
+          result.items,
+
+        activeSessionId,
+      };
+    },
+  );
+
+  ipcMain.handle(
+    "tongyu:sessions:create",
+    async () => {
+      if (
+        !runtimeHost
+      ) {
+        throw new Error(
+          "Tongyu Runtime Host is not initialized.",
+        );
+      }
+
+      const created =
+        await runtimeHost
+          .requireClient()
+          .createSession(
+            app.getAppPath(),
+          );
+
+      activeSessionId =
+        created.sessionId;
+
+      return created;
+    },
+  );
+
+  ipcMain.handle(
+    "tongyu:sessions:resume",
+    async (
+      _event,
+      sessionId:
+        unknown,
+    ) => {
+      if (
+        !runtimeHost
+      ) {
+        throw new Error(
+          "Tongyu Runtime Host is not initialized.",
+        );
+      }
+
+      if (
+        typeof sessionId !==
+          "string" ||
+        !sessionId
+      ) {
+        throw new Error(
+          "A valid sessionId is required.",
+        );
+      }
+
+      const resumed =
+        await runtimeHost
+          .requireClient()
+          .resumeSession(
+            sessionId,
+          );
+
+      activeSessionId =
+        resumed.sessionId;
+
+      return resumed;
+    },
+  );
+
+  ipcMain.handle(
+    "tongyu:sessions:close",
+    async (
+      _event,
+      sessionId:
+        unknown,
+    ) => {
+      if (
+        !runtimeHost
+      ) {
+        throw new Error(
+          "Tongyu Runtime Host is not initialized.",
+        );
+      }
+
+      if (
+        typeof sessionId !==
+          "string" ||
+        !sessionId
+      ) {
+        throw new Error(
+          "A valid sessionId is required.",
+        );
+      }
+
+      const closed =
+        await runtimeHost
+          .requireClient()
+          .closeSession(
+            sessionId,
+          );
+
+      if (
+        activeSessionId ===
+          sessionId
+      ) {
+        activeSessionId =
+          null;
+      }
+
+      return closed;
     },
   );
 }
@@ -315,6 +456,96 @@ async function runSmokeTest(
 
   console.log(
     "[tongyu-desktop-smoke] renderer=loaded bridge=ready runtime=running",
+  );
+
+  const sessionBridge:
+    unknown =
+    await window.webContents
+      .executeJavaScript(
+        `
+          (async () => {
+            const created =
+              await window.tongyuDesktop.sessions.create();
+
+            const listed =
+              await window.tongyuDesktop.sessions.list();
+
+            const resumed =
+              await window.tongyuDesktop.sessions.resume(
+                created.sessionId,
+              );
+
+            const closed =
+              await window.tongyuDesktop.sessions.close(
+                created.sessionId,
+              );
+
+            return {
+              sessionId:
+                created.sessionId,
+
+              listed:
+                listed.items.some(
+                  (item) =>
+                    item.sessionId ===
+                      created.sessionId,
+                ),
+
+              resumedSessionId:
+                resumed.sessionId,
+
+              closedType:
+                closed.type,
+            };
+          })()
+        `,
+      );
+
+  if (
+    typeof sessionBridge !==
+      "object" ||
+    sessionBridge ===
+      null
+  ) {
+    throw new Error(
+      "Desktop Session Bridge returned an invalid result.",
+    );
+  }
+
+  const sessionResult =
+    sessionBridge as {
+      sessionId?:
+        unknown;
+
+      listed?:
+        unknown;
+
+      resumedSessionId?:
+        unknown;
+
+      closedType?:
+        unknown;
+    };
+
+  if (
+    typeof sessionResult.sessionId !==
+      "string" ||
+    sessionResult.listed !==
+      true ||
+    sessionResult.resumedSessionId !==
+      sessionResult.sessionId ||
+    sessionResult.closedType !==
+      "session.end"
+  ) {
+    throw new Error(
+      `Desktop Session Bridge failed: ${JSON.stringify(
+        sessionResult,
+      )}`,
+    );
+  }
+
+  console.log(
+    "[tongyu-desktop-smoke] sessions=create,list,resume,close",
   );
 
   await runtimeHost.stop();

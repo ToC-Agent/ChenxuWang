@@ -47,5 +47,37 @@ contextBridge.exposeInMainWorld(
           };
         },
     },
+
+    sessions: {
+      list:
+        () =>
+          ipcRenderer.invoke(
+            "tongyu:sessions:list",
+          ),
+
+      create:
+        () =>
+          ipcRenderer.invoke(
+            "tongyu:sessions:create",
+          ),
+
+      resume:
+        (
+          sessionId,
+        ) =>
+          ipcRenderer.invoke(
+            "tongyu:sessions:resume",
+            sessionId,
+          ),
+
+      close:
+        (
+          sessionId,
+        ) =>
+          ipcRenderer.invoke(
+            "tongyu:sessions:close",
+            sessionId,
+          ),
+    },
   },
 );

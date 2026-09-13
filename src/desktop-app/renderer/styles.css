@@ -317,3 +317,167 @@ button {
   line-height:
     1.5;
 }
+
+.sidebar-heading {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  margin-bottom:
+    10px;
+}
+
+.sidebar-heading .sidebar-title {
+  margin-bottom:
+    0;
+}
+
+.sidebar-action {
+  width:
+    28px;
+
+  height:
+    28px;
+
+  padding:
+    0;
+
+  border:
+    1px solid #383b41;
+
+  border-radius:
+    6px;
+
+  background:
+    #202226;
+
+  color:
+    #d7d9dd;
+
+  cursor:
+    pointer;
+}
+
+.sidebar-action:hover {
+  background:
+    #2a2d32;
+}
+
+.sidebar-action:disabled {
+  opacity:
+    0.45;
+
+  cursor:
+    default;
+}
+
+.session-list {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    3px;
+}
+
+.session-item {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  width:
+    100%;
+
+  padding:
+    9px 10px;
+
+  border:
+    1px solid transparent;
+
+  border-radius:
+    7px;
+
+  background:
+    transparent;
+
+  color:
+    #adb1b8;
+
+  text-align:
+    left;
+
+  cursor:
+    pointer;
+}
+
+.session-item:hover {
+  background:
+    #202226;
+}
+
+.session-item.active {
+  border-color:
+    #3a3d43;
+
+  background:
+    #27292e;
+
+  color:
+    #f3f4f6;
+}
+
+.session-name {
+  overflow:
+    hidden;
+
+  font-size:
+    13px;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+}
+
+.session-status {
+  margin-left:
+    8px;
+
+  font-size:
+    10px;
+
+  color:
+    #747982;
+
+  text-transform:
+    uppercase;
+}
+
+.session-empty {
+  padding:
+    9px 10px;
+
+  color:
+    #686d75;
+
+  font-size:
+    12px;
+}
+
+.sidebar-section {
+  margin-top:
+    26px;
+}
