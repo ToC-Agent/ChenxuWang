@@ -131,7 +131,8 @@ export function sessionEventsToModelMessages(
 }
 
 import {
-  TONGYU_NATIVE_SYSTEM_POLICY,
+  buildTongyuNativeSystemPolicy,
+  type TongyuNativeSystemContext,
 } from "./system-policy.js";
 
 /**
@@ -143,6 +144,9 @@ import {
 export function sessionEventsToNativeModelMessages(
   events:
     readonly SessionEvent[],
+
+  context:
+    TongyuNativeSystemContext,
 ): ModelMessage[] {
   return [
     {
@@ -150,7 +154,9 @@ export function sessionEventsToNativeModelMessages(
         "system",
 
       content:
-        TONGYU_NATIVE_SYSTEM_POLICY,
+        buildTongyuNativeSystemPolicy(
+          context,
+        ),
     },
 
     ...sessionEventsToModelMessages(

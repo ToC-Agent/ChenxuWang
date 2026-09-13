@@ -24,5 +24,7 @@ export {
 
 export {
   TONGYU_NATIVE_SYSTEM_POLICY,
+  buildTongyuNativeSystemPolicy,
+  type TongyuNativeSystemContext,
 } from "./system-policy.js";
 

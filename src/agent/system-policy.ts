@@ -55,3 +55,42 @@ Follow these execution rules:
 Be concise when the task is simple, and use tools deliberately rather
 than automatically.
 `.trim();
+
+export interface TongyuNativeSystemContext {
+  cwd:
+    string;
+
+  platform:
+    string;
+
+  arch:
+    string;
+}
+
+/**
+ * Build the complete native system prompt.
+ *
+ * Runtime facts are supplied directly by Tongyu instead of forcing
+ * the model to discover them through shell commands.
+ */
+export function buildTongyuNativeSystemPolicy(
+  context:
+    TongyuNativeSystemContext,
+): string {
+  return [
+    TONGYU_NATIVE_SYSTEM_POLICY,
+
+    "",
+    "Runtime context:",
+    `- Workspace: ${context.cwd}`,
+    `- Platform: ${context.platform}`,
+    `- Architecture: ${context.arch}`,
+
+    "",
+    "Treat the runtime context above as authoritative.",
+    "Do not call pwd, uname, or similar environment-inspection commands",
+    "merely to rediscover information already provided here.",
+  ].join(
+    "\n",
+  );
+}

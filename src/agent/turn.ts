@@ -301,6 +301,16 @@ export class AgentTurn {
       const messages =
         sessionEventsToNativeModelMessages(
           roundSnapshot.events,
+          {
+            cwd:
+              roundSnapshot.session.cwd,
+
+            platform:
+              process.platform,
+
+            arch:
+              process.arch,
+          },
         );
 
       const modelRequest:
