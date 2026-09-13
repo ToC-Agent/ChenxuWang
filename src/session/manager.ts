@@ -712,6 +712,190 @@ export class SessionManager {
   }
 
 
+  recordWorkspaceReview(
+    sessionId: string,
+    requestId: string,
+    review: {
+      path: string;
+
+      decision:
+        | "accepted"
+        | "reverted";
+
+      reviewedSessionEventId:
+        string;
+
+      reviewedAfterSha256:
+        string;
+
+      revertAction?:
+        | "restored"
+        | "deleted";
+    },
+  ): {
+    event: Extract<
+      SessionEvent,
+      {
+        type:
+          "workspace.review";
+      }
+    >;
+
+    replayed: boolean;
+  } {
+    if (
+      review.decision ===
+        "accepted" &&
+      review.revertAction !==
+        undefined
+    ) {
+      throw new Error(
+        "Accepted workspace reviews cannot contain a revert action.",
+      );
+    }
+
+    if (
+      review.decision ===
+        "reverted" &&
+      review.revertAction ===
+        undefined
+    ) {
+      throw new Error(
+        "Reverted workspace reviews require a revert action.",
+      );
+    }
+
+    const paths =
+      initializeRuntime();
+
+    const store =
+      new SessionStore(
+        paths.sessions,
+      );
+
+    const session =
+      store.load(
+        sessionId,
+      );
+
+    const eventStore =
+      new SessionEventStore(
+        paths.sessions,
+      );
+
+    const existingEvent =
+      eventStore
+        .readAll(
+          session.id,
+        )
+        .find(
+          (
+            candidate,
+          ): candidate is Extract<
+            SessionEvent,
+            {
+              type:
+                "workspace.review";
+            }
+          > =>
+            candidate.type ===
+              "workspace.review" &&
+            candidate.requestId ===
+              requestId,
+        );
+
+    if (
+      existingEvent
+    ) {
+      if (
+        existingEvent.path !==
+          review.path ||
+        existingEvent.decision !==
+          review.decision ||
+        existingEvent.reviewedSessionEventId !==
+          review.reviewedSessionEventId ||
+        existingEvent.reviewedAfterSha256 !==
+          review.reviewedAfterSha256 ||
+        existingEvent.revertAction !==
+          review.revertAction
+      ) {
+        throw new RequestIdConflictError(
+          session.id,
+          requestId,
+        );
+      }
+
+      return {
+        event:
+          existingEvent,
+
+        replayed:
+          true,
+      };
+    }
+
+    const event: Extract<
+      SessionEvent,
+      {
+        type:
+          "workspace.review";
+      }
+    > = {
+      id:
+        createSessionEventId(),
+
+      type:
+        "workspace.review",
+
+      timestamp:
+        Date.now(),
+
+      sessionId:
+        session.id,
+
+      requestId,
+
+      path:
+        review.path,
+
+      decision:
+        review.decision,
+
+      reviewedSessionEventId:
+        review.reviewedSessionEventId,
+
+      reviewedAfterSha256:
+        review.reviewedAfterSha256,
+
+      ...(
+        review.revertAction
+          ? {
+              revertAction:
+                review.revertAction,
+            }
+          : {}
+      ),
+    };
+
+    eventStore.append(
+      event,
+    );
+
+    session.updatedAt =
+      event.timestamp;
+
+    store.save(
+      session,
+    );
+
+    return {
+      event,
+
+      replayed:
+        false,
+    };
+  }
+
   close(
     sessionId:
       string,

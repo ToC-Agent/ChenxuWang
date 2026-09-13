@@ -112,6 +112,50 @@ const ToolResultEventSchema =
         .optional(),
   }).strict();
 
+const WorkspaceReviewEventSchema =
+  z.object({
+    ...BaseEventFields,
+
+    type:
+      z.literal(
+        "workspace.review",
+      ),
+
+    requestId:
+      RequestIdSchema,
+
+    path:
+      z.string()
+        .min(1),
+
+    decision:
+      z.enum([
+        "accepted",
+        "reverted",
+      ]),
+
+    /*
+     * Review is attached to one exact version of the file,
+     * never merely to the path.
+     */
+    reviewedSessionEventId:
+      z.string()
+        .min(1),
+
+    reviewedAfterSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    revertAction:
+      z.enum([
+        "restored",
+        "deleted",
+      ])
+        .optional(),
+  }).strict();
+
 const RuntimeErrorEventSchema =
   z.object({
     ...BaseEventFields,
@@ -140,6 +184,7 @@ export const SessionEventSchema =
       AssistantMessageEventSchema,
       ToolCallEventSchema,
       ToolResultEventSchema,
+      WorkspaceReviewEventSchema,
       RuntimeErrorEventSchema,
     ],
   );

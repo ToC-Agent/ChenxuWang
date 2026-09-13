@@ -22,6 +22,7 @@ export type {
   WorkspaceChangeFilter,
   WorkspaceChangeRecord,
   WorkspaceChangeSummary,
+  WorkspaceReviewState,
 } from "./changes.js";
 
 export {

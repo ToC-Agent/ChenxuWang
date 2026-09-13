@@ -1110,6 +1110,133 @@ export async function runStdioServer(
     }
     if (
       message.type ===
+        "workspace.changes.accept"
+    ) {
+      try {
+        const snapshot =
+          sessionManager.resume(
+            message.sessionId,
+          );
+
+        const status =
+          await inspectWorkspaceChangeStatus(
+            snapshot.session.cwd,
+            snapshot.events,
+            {
+              path:
+                message.path,
+            },
+          );
+
+        const fileStatus =
+          status.files[0];
+
+        if (
+          !fileStatus
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "WORKSPACE_CHANGE_NOT_FOUND",
+              `No Tongyu workspace changes were found for: ${message.path}`,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        /*
+         * Accept only the exact version currently on disk.
+         *
+         * If the user/editor/another agent changed it after
+         * Tongyu's recorded mutation, accepting that historic
+         * version would be misleading.
+         */
+        if (
+          fileStatus.state !==
+            "current"
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "WORKSPACE_REVIEW_UNSAFE",
+              `Workspace file is no longer in Tongyu's recorded after-state; refusing accept: ${message.path}`,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
+        const review =
+          sessionManager.recordWorkspaceReview(
+            snapshot.session.id,
+            message.id,
+            {
+              path:
+                fileStatus.path,
+
+              decision:
+                "accepted",
+
+              reviewedSessionEventId:
+                fileStatus.latestSessionEventId,
+
+              reviewedAfterSha256:
+                fileStatus.latestAfterSha256,
+            },
+          );
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "workspace.change.reviewed",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          sessionEventId:
+            review.event.id,
+
+          path:
+            review.event.path,
+
+          decision:
+            review.event.decision,
+
+          reviewedSessionEventId:
+            review.event
+              .reviewedSessionEventId,
+
+          reviewedAfterSha256:
+            review.event
+              .reviewedAfterSha256,
+
+          replayed:
+            review.replayed,
+        });
+      } catch (error) {
+        writeTurnError(
+          error,
+          message.id,
+          message.sessionId,
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      message.type ===
         "workspace.changes.revert"
     ) {
       try {
@@ -1118,11 +1245,62 @@ export async function runStdioServer(
             message.sessionId,
           );
 
+        const revertReviewSummary =
+          summarizeWorkspaceChanges(
+            snapshot.events,
+            {
+              path:
+                message.path,
+            },
+          );
+
+        const revertReviewTarget =
+          revertReviewSummary.files[0];
+
+        if (
+          !revertReviewTarget
+        ) {
+          writeEvent(
+            createRuntimeError(
+              "WORKSPACE_CHANGE_NOT_FOUND",
+              `No Tongyu workspace changes were found for: ${message.path}`,
+              message.id,
+              message.sessionId,
+            ),
+          );
+
+          continue;
+        }
+
         const result =
           await revertWorkspaceFile(
             snapshot.session.cwd,
             snapshot.events,
             message.path,
+          );
+
+        const review =
+          sessionManager.recordWorkspaceReview(
+            snapshot.session.id,
+            message.id,
+            {
+              path:
+                revertReviewTarget.path,
+
+              decision:
+                "reverted",
+
+              reviewedSessionEventId:
+                revertReviewTarget
+                  .latestSessionEventId,
+
+              reviewedAfterSha256:
+                revertReviewTarget
+                  .latestAfterSha256,
+
+              revertAction:
+                result.action,
+            },
           );
 
         writeEvent({
@@ -1156,6 +1334,46 @@ export async function runStdioServer(
           bytes:
             result.bytes,
         });
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "workspace.change.reviewed",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          sessionEventId:
+            review.event.id,
+
+          path:
+            review.event.path,
+
+          decision:
+            review.event.decision,
+
+          reviewedSessionEventId:
+            review.event
+              .reviewedSessionEventId,
+
+          reviewedAfterSha256:
+            review.event
+              .reviewedAfterSha256,
+
+          revertAction:
+            review.event.revertAction,
+
+          replayed:
+            review.replayed,
+        });
+
       } catch (error) {
         if (
           error instanceof
@@ -1238,6 +1456,9 @@ export async function runStdioServer(
 
             path:
               fileStatus.path,
+
+            reviewState:
+              fileStatus.reviewState,
 
             state:
               fileStatus.state,
@@ -1372,6 +1593,9 @@ export async function runStdioServer(
 
             path:
               fileSummary.path,
+
+            reviewState:
+              fileSummary.reviewState,
 
             mutationCount:
               fileSummary.mutationCount,

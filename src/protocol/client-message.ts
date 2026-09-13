@@ -155,6 +155,24 @@ const SessionListMessageSchema =
       ),
   }).strict();
 
+const WorkspaceChangesAcceptMessageSchema =
+  z.object({
+    id:
+      MessageIdSchema,
+
+    type:
+      z.literal(
+        "workspace.changes.accept",
+      ),
+
+    sessionId:
+      SessionIdSchema,
+
+    path:
+      z.string()
+        .min(1),
+  }).strict();
+
 const WorkspaceChangesRevertMessageSchema =
   z.object({
     id:
@@ -253,6 +271,7 @@ export const ClientMessageSchema =
       WorkspaceChangesListMessageSchema,
       WorkspaceChangesSummaryMessageSchema,
       WorkspaceChangesStatusMessageSchema,
+      WorkspaceChangesAcceptMessageSchema,
       WorkspaceChangesRevertMessageSchema,
       SessionCloseMessageSchema,
       UserMessageSchema,

@@ -546,6 +546,13 @@ const WorkspaceChangeSummaryItemEventSchema =
     path:
       z.string().min(1),
 
+    reviewState:
+      z.enum([
+        "pending",
+        "accepted",
+        "reverted",
+      ]),
+
     mutationCount:
       z.number()
         .int()
@@ -644,6 +651,13 @@ const WorkspaceChangeStatusItemEventSchema =
 
     path:
       z.string().min(1),
+
+    reviewState:
+      z.enum([
+        "pending",
+        "accepted",
+        "reverted",
+      ]),
 
     state:
       z.enum([
@@ -795,6 +809,60 @@ const WorkspaceChangeRevertedEventSchema =
         .int()
         .nonnegative()
         .nullable(),
+  }).strict();
+
+const WorkspaceChangeReviewedEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.reviewed",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    sessionEventId:
+      z.string()
+        .min(1),
+
+    path:
+      z.string()
+        .min(1),
+
+    decision:
+      z.enum([
+        "accepted",
+        "reverted",
+      ]),
+
+    reviewedSessionEventId:
+      z.string()
+        .min(1),
+
+    reviewedAfterSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    revertAction:
+      z.enum([
+        "restored",
+        "deleted",
+      ])
+        .optional(),
+
+    replayed:
+      z.boolean(),
   }).strict();
 
 const RuntimeErrorEventSchema =
@@ -951,6 +1019,7 @@ export const ServerEventSchema =
       WorkspaceChangeStatusItemEventSchema,
       WorkspaceChangeStatusEndEventSchema,
       WorkspaceChangeRevertedEventSchema,
+      WorkspaceChangeReviewedEventSchema,
       RuntimeErrorEventSchema,
       SessionEndEventSchema,
     ],

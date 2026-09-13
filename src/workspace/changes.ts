@@ -28,8 +28,16 @@ export interface WorkspaceChangeFilter {
     string;
 }
 
+export type WorkspaceReviewState =
+  | "pending"
+  | "accepted"
+  | "reverted";
+
 export interface WorkspaceChangeFileSummary {
   path: string;
+
+  reviewState:
+    WorkspaceReviewState;
 
   /*
    * Number of successful workspace mutation events
@@ -277,6 +285,14 @@ export function summarizeWorkspaceChanges(
       existing.latestSourceToolName =
         change.sourceToolName;
 
+      /*
+       * Any newer mutation invalidates review of the
+       * previous version until a matching review event
+       * is encountered below.
+       */
+      existing.reviewState =
+        "pending";
+
       continue;
     }
 
@@ -285,6 +301,9 @@ export function summarizeWorkspaceChanges(
       {
         path:
           changeSet.path,
+
+        reviewState:
+          "pending",
 
         mutationCount:
           1,
@@ -314,6 +333,48 @@ export function summarizeWorkspaceChanges(
           change.sourceToolName,
       },
     );
+  }
+
+  /*
+   * A review belongs to an exact ChangeSet version.
+   *
+   * If the same path receives another mutation later,
+   * latestSessionEventId/latestAfterSha256 change and the
+   * old review no longer matches, so the file naturally
+   * becomes pending again.
+   */
+  for (
+    const event of events
+  ) {
+    if (
+      event.type !==
+        "workspace.review"
+    ) {
+      continue;
+    }
+
+    const file =
+      filesByPath.get(
+        event.path,
+      );
+
+    if (
+      !file
+    ) {
+      continue;
+    }
+
+    if (
+      event.reviewedSessionEventId !==
+        file.latestSessionEventId ||
+      event.reviewedAfterSha256 !==
+        file.latestAfterSha256
+    ) {
+      continue;
+    }
+
+    file.reviewState =
+      event.decision;
   }
 
   const files =
