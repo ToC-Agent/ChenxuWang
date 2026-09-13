@@ -28,3 +28,7 @@ export {
   type TongyuNativeSystemContext,
 } from "./system-policy.js";
 
+export {
+  WORKSPACE_INSTRUCTIONS_FILENAME,
+  loadWorkspaceInstructions,
+} from "./workspace-instructions.js";

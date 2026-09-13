@@ -29,6 +29,10 @@ import {
 } from "./history.js";
 
 import {
+  loadWorkspaceInstructions,
+} from "./workspace-instructions.js";
+
+import {
   toolsToModelDefinitions,
 } from "./tool-definitions.js";
 
@@ -165,6 +169,12 @@ export class AgentTurn {
       this.sessionManager.resume(
         input.sessionId,
       );
+
+    const workspaceInstructions =
+      loadWorkspaceInstructions(
+        snapshot.session.cwd,
+      );
+
 
     const targetUserEvent =
       [...snapshot.events]
@@ -310,6 +320,7 @@ export class AgentTurn {
 
             arch:
               process.arch,
+            workspaceInstructions,
           },
         );
 
