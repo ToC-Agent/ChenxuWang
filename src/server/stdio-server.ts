@@ -1,4 +1,8 @@
 import {
+  extractTextFileChangeSet,
+} from "../workspace/index.js";
+
+import {
   createTongyuNativeRuntime,
 } from "../agent-runtime/index.js";
 
@@ -506,6 +510,9 @@ export async function runStdioServer(
           Date.now(),
 
         requestId:
+          agentEvent.requestId,
+
+        sourceRequestId:
           agentEvent.requestId,
 
         sessionId:
@@ -1163,6 +1170,102 @@ export async function runStdioServer(
               snapshot.session.id,
 
             event,
+          });
+        }
+
+        /*
+         * workspace.change is derived from the durable
+         * tool.result ChangeSet.
+         *
+         * Do not persist another copy. Reconstruct it when
+         * a client resumes the session.
+         */
+        for (
+          const historyEvent of
+            snapshot.events
+        ) {
+          if (
+            historyEvent.type !==
+              "tool.result" ||
+            (
+              historyEvent.isError ??
+              false
+            )
+          ) {
+            continue;
+          }
+
+          const replayedWorkspaceChangeSet =
+            extractTextFileChangeSet(
+              historyEvent.result,
+            );
+
+          if (
+            !replayedWorkspaceChangeSet
+          ) {
+            continue;
+          }
+
+          const sourceToolCall =
+            snapshot.events.find(
+              (candidate) =>
+                candidate.type ===
+                  "tool.call" &&
+                candidate.requestId ===
+                  historyEvent.requestId &&
+                candidate.toolCallId ===
+                  historyEvent.toolCallId,
+            );
+
+          if (
+            !sourceToolCall ||
+            sourceToolCall.type !==
+              "tool.call"
+          ) {
+            continue;
+          }
+
+          writeEvent({
+            id:
+              createEventId(),
+
+            type:
+              "workspace.change",
+
+            timestamp:
+              Date.now(),
+
+            /*
+             * Correlate this protocol event with the
+             * current session.resume request.
+             */
+            requestId:
+              message.id,
+
+            /*
+             * Preserve the user turn that originally
+             * caused the workspace mutation.
+             */
+            sourceRequestId:
+              historyEvent.requestId,
+
+            sessionId:
+              snapshot.session.id,
+
+            sessionEventId:
+              historyEvent.id,
+
+            toolCallId:
+              historyEvent.toolCallId,
+
+            sourceToolName:
+              sourceToolCall.name,
+
+            changeSet:
+              replayedWorkspaceChangeSet,
+
+            replayed:
+              true,
           });
         }
 

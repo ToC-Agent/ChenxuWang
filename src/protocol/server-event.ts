@@ -442,6 +442,9 @@ const WorkspaceChangeEventSchema =
     requestId:
       RequestIdSchema,
 
+    sourceRequestId:
+      RequestIdSchema,
+
     sessionId:
       SessionIdSchema,
 
