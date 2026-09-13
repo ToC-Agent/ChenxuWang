@@ -80,3 +80,8 @@ export {
 export type {
   FilesystemPatchOutput,
 } from "./builtins/filesystem-patch.js";
+
+export type {
+  TextFileChangeSet,
+  TextReplacementChange,
+} from "./builtins/text-change-set.js";

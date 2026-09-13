@@ -11,6 +11,13 @@ import type {
 } from "../types.js";
 
 import {
+  createTextFileChangeSet,
+  createTextReplacementChange,
+  getTextStartLine,
+  type TextFileChangeSet,
+} from "./text-change-set.js";
+
+import {
   countTextOccurrences,
   loadExistingWorkspaceTextFile,
   writeWorkspaceTextFileAtomic,
@@ -54,6 +61,9 @@ export interface FilesystemEditOutput {
   bytes: number;
 
   replacements: 1;
+
+  changeSet:
+    TextFileChangeSet;
 }
 
 export const filesystemEditTool:
@@ -124,6 +134,40 @@ export const filesystemEditTool:
             input.oldText.length,
         );
 
+      const change =
+        createTextReplacementChange({
+          sequence:
+            1,
+
+          startLine:
+            getTextStartLine(
+              file.content,
+              matchIndex,
+            ),
+
+          oldText:
+            input.oldText,
+
+          newText:
+            input.newText,
+        });
+
+      const changeSet =
+        createTextFileChangeSet({
+          path:
+            file.relativePath,
+
+          beforeContent:
+            file.content,
+
+          afterContent:
+            updatedContent,
+
+          changes: [
+            change,
+          ],
+        });
+
       const bytes =
         await writeWorkspaceTextFileAtomic(
           file,
@@ -138,6 +182,8 @@ export const filesystemEditTool:
 
         replacements:
           1,
+
+        changeSet,
       };
     },
   };
