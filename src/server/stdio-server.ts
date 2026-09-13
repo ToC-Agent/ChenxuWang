@@ -1,5 +1,5 @@
 import {
-  TongyuNativeRuntime,
+  createTongyuNativeRuntime,
 } from "../agent-runtime/index.js";
 
 import {
@@ -18,7 +18,6 @@ import {
 
 import {
   AgentModelStreamError,
-  AgentTurn,
   AgentTurnInputError,
 
   AgentTurnInterruptedError,} from "../agent/index.js";
@@ -179,19 +178,13 @@ export async function runStdioServer(
       },
     );
 
-  const agentTurn =
-    new AgentTurn(
+  const agentRuntime =
+    createTongyuNativeRuntime(
       modelProvider,
       sessionManager,
       toolRegistry,
       permissionPolicy,
     );
-
-  const agentRuntime =
-    new TongyuNativeRuntime(
-      agentTurn,
-    );
-
   let initialized =
     false;
 
