@@ -17,6 +17,14 @@ import {
   TONGYU_VERSION,
 } from "../constants.js";
 
+import type {
+  TongyuRuntimeClient,
+} from "../client/index.js";
+
+import type {
+  ServerEvent,
+} from "../protocol/index.js";
+
 interface DesktopRuntimeStatus {
   state:
     DesktopRuntimeHostSnapshot["state"];
@@ -43,6 +51,35 @@ let allowQuit =
 let activeSessionId:
   string | null =
     null;
+
+let bridgedRuntimeClient:
+  TongyuRuntimeClient |
+  undefined;
+
+let runtimeEventUnsubscribe:
+  (() => void) |
+  undefined;
+
+const DESKTOP_AGENT_EVENT_TYPES =
+  new Set<
+    ServerEvent["type"]
+  >([
+    "session.created",
+    "session.resumed",
+    "session.history.event",
+    "session.history.end",
+    "user.message.recorded",
+    "assistant.delta",
+    "assistant.message",
+    "permission.request",
+    "tool.call",
+    "tool.result",
+    "turn.status",
+    "control.interrupted",
+    "runtime.error",
+    "session.end",
+    "workspace.change",
+  ]);
 
 
 function serializeRuntimeStatus(
@@ -104,6 +141,111 @@ function broadcastRuntimeStatus(): void {
       payload,
     );
   }
+}
+
+function broadcastAgentEvent(
+  event:
+    ServerEvent,
+): void {
+  for (
+    const window of
+      BrowserWindow.getAllWindows()
+  ) {
+    if (
+      window.isDestroyed()
+    ) {
+      continue;
+    }
+
+    window.webContents.send(
+      "tongyu:agent:event",
+      event,
+    );
+  }
+}
+
+function attachRuntimeEventBridge(
+  client:
+    TongyuRuntimeClient,
+): void {
+  if (
+    bridgedRuntimeClient ===
+      client &&
+    runtimeEventUnsubscribe
+  ) {
+    return;
+  }
+
+  runtimeEventUnsubscribe?.();
+
+  bridgedRuntimeClient =
+    client;
+
+  runtimeEventUnsubscribe =
+    client.onEvent(
+      (
+        event,
+      ) => {
+        if (
+          !DESKTOP_AGENT_EVENT_TYPES.has(
+            event.type,
+          )
+        ) {
+          return;
+        }
+
+        broadcastAgentEvent(
+          event,
+        );
+      },
+    );
+
+  const cleanup =
+    () => {
+      if (
+        bridgedRuntimeClient !==
+          client
+      ) {
+        return;
+      }
+
+      runtimeEventUnsubscribe?.();
+
+      runtimeEventUnsubscribe =
+        undefined;
+
+      bridgedRuntimeClient =
+        undefined;
+    };
+
+  void client
+    .waitForExit()
+    .then(
+      cleanup,
+      cleanup,
+    );
+}
+
+async function startDesktopRuntime():
+  Promise<
+    TongyuRuntimeClient
+  > {
+  if (
+    !runtimeHost
+  ) {
+    throw new Error(
+      "Tongyu Runtime Host is not initialized.",
+    );
+  }
+
+  const client =
+    await startDesktopRuntime();
+
+  attachRuntimeEventBridge(
+    client,
+  );
+
+  return client;
 }
 
 function createRuntimeHost():
@@ -189,7 +331,7 @@ function registerDesktopIpc(): void {
       activeSessionId =
         null;
 
-      await runtimeHost.start();
+      await startDesktopRuntime();
 
       return currentRuntimeStatus();
     },
@@ -327,6 +469,168 @@ function registerDesktopIpc(): void {
       return closed;
     },
   );
+
+  ipcMain.handle(
+    "tongyu:agent:send-message",
+    (
+      _event,
+      sessionId:
+        unknown,
+      content:
+        unknown,
+    ) => {
+      if (
+        !runtimeHost
+      ) {
+        throw new Error(
+          "Tongyu Runtime Host is not initialized.",
+        );
+      }
+
+      if (
+        typeof sessionId !==
+          "string" ||
+        !sessionId
+      ) {
+        throw new Error(
+          "A valid sessionId is required.",
+        );
+      }
+
+      if (
+        activeSessionId !==
+          sessionId
+      ) {
+        throw new Error(
+          "Messages can only be sent to the active session.",
+        );
+      }
+
+      if (
+        typeof content !==
+          "string" ||
+        !content.trim()
+      ) {
+        throw new Error(
+          "Message content must not be empty.",
+        );
+      }
+
+      const requestId =
+        runtimeHost
+          .requireClient()
+          .sendMessage(
+            sessionId,
+            content,
+          );
+
+      return {
+        requestId,
+      };
+    },
+  );
+
+  ipcMain.handle(
+    "tongyu:agent:interrupt",
+    async (
+      _event,
+      sessionId:
+        unknown,
+    ) => {
+      if (
+        !runtimeHost
+      ) {
+        throw new Error(
+          "Tongyu Runtime Host is not initialized.",
+        );
+      }
+
+      if (
+        typeof sessionId !==
+          "string" ||
+        !sessionId ||
+        activeSessionId !==
+          sessionId
+      ) {
+        throw new Error(
+          "A valid active sessionId is required.",
+        );
+      }
+
+      return runtimeHost
+        .requireClient()
+        .interrupt(
+          sessionId,
+        );
+    },
+  );
+
+  ipcMain.handle(
+    "tongyu:agent:permission",
+    (
+      _event,
+      sessionId:
+        unknown,
+      permissionRequestId:
+        unknown,
+      decision:
+        unknown,
+    ) => {
+      if (
+        !runtimeHost
+      ) {
+        throw new Error(
+          "Tongyu Runtime Host is not initialized.",
+        );
+      }
+
+      if (
+        typeof sessionId !==
+          "string" ||
+        !sessionId ||
+        activeSessionId !==
+          sessionId
+      ) {
+        throw new Error(
+          "A valid active sessionId is required.",
+        );
+      }
+
+      if (
+        typeof permissionRequestId !==
+          "string" ||
+        !permissionRequestId
+      ) {
+        throw new Error(
+          "A valid permissionRequestId is required.",
+        );
+      }
+
+      if (
+        decision !==
+          "allow_once" &&
+        decision !==
+          "deny"
+      ) {
+        throw new Error(
+          "Permission decision must be allow_once or deny.",
+        );
+      }
+
+      const requestId =
+        runtimeHost
+          .requireClient()
+          .respondPermission(
+            sessionId,
+            permissionRequestId,
+            decision,
+          );
+
+      return {
+        requestId,
+      };
+    },
+  );
 }
 
 function createWindow(
@@ -429,7 +733,7 @@ async function runSmokeTest(
     },
   );
 
-  await runtimeHost.start();
+  await startDesktopRuntime();
 
   const bridgeState:
     unknown =
@@ -548,6 +852,137 @@ async function runSmokeTest(
     "[tongyu-desktop-smoke] sessions=create,list,resume,close",
   );
 
+  const agentBridge:
+    unknown =
+    await window.webContents
+      .executeJavaScript(
+        `
+          (async () => {
+            const created =
+              await window.tongyuDesktop.sessions.create();
+
+            const seen =
+              [];
+
+            let resolveHistory;
+            let rejectHistory;
+
+            const historyComplete =
+              new Promise(
+                (resolve, reject) => {
+                  resolveHistory =
+                    resolve;
+
+                  rejectHistory =
+                    reject;
+                },
+              );
+
+            const timeout =
+              setTimeout(
+                () => {
+                  rejectHistory(
+                    new Error(
+                      "Timed out waiting for Desktop Agent events",
+                    ),
+                  );
+                },
+                5000,
+              );
+
+            const unsubscribe =
+              window.tongyuDesktop.agent.onEvent(
+                (event) => {
+                  if (
+                    event.type ===
+                      "session.resumed" ||
+                    event.type ===
+                      "session.history.end"
+                  ) {
+                    seen.push(
+                      event.type,
+                    );
+                  }
+
+                  if (
+                    event.type ===
+                      "session.history.end"
+                  ) {
+                    clearTimeout(
+                      timeout,
+                    );
+
+                    resolveHistory();
+                  }
+                },
+              );
+
+            await window
+              .tongyuDesktop
+              .sessions
+              .resume(
+                created.sessionId,
+              );
+
+            await historyComplete;
+
+            unsubscribe();
+
+            await window
+              .tongyuDesktop
+              .sessions
+              .close(
+                created.sessionId,
+              );
+
+            return {
+              seen,
+            };
+          })()
+        `,
+      );
+
+  if (
+    typeof agentBridge !==
+      "object" ||
+    agentBridge ===
+      null
+  ) {
+    throw new Error(
+      "Desktop Agent Event Bridge returned an invalid result.",
+    );
+  }
+
+  const seen =
+    (
+      agentBridge as {
+        seen?:
+          unknown;
+      }
+    ).seen;
+
+  if (
+    !Array.isArray(
+      seen,
+    ) ||
+    !seen.includes(
+      "session.resumed",
+    ) ||
+    !seen.includes(
+      "session.history.end",
+    )
+  ) {
+    throw new Error(
+      `Desktop Agent Event Bridge failed: ${JSON.stringify(
+        agentBridge,
+      )}`,
+    );
+  }
+
+  console.log(
+    "[tongyu-desktop-smoke] agent-events=session.resumed,session.history.end",
+  );
+
   await runtimeHost.stop();
 
   console.log(
@@ -603,8 +1038,7 @@ app.whenReady()
         return;
       }
 
-      void runtimeHost
-        .start()
+      void startDesktopRuntime()
         .catch(
           (
             error,

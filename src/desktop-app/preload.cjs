@@ -48,6 +48,68 @@ contextBridge.exposeInMainWorld(
         },
     },
 
+    agent: {
+      sendMessage:
+        (
+          sessionId,
+          content,
+        ) =>
+          ipcRenderer.invoke(
+            "tongyu:agent:send-message",
+            sessionId,
+            content,
+          ),
+
+      interrupt:
+        (
+          sessionId,
+        ) =>
+          ipcRenderer.invoke(
+            "tongyu:agent:interrupt",
+            sessionId,
+          ),
+
+      respondPermission:
+        (
+          sessionId,
+          permissionRequestId,
+          decision,
+        ) =>
+          ipcRenderer.invoke(
+            "tongyu:agent:permission",
+            sessionId,
+            permissionRequestId,
+            decision,
+          ),
+
+      onEvent:
+        (
+          callback,
+        ) => {
+          const listener =
+            (
+              _event,
+              runtimeEvent,
+            ) => {
+              callback(
+                runtimeEvent,
+              );
+            };
+
+          ipcRenderer.on(
+            "tongyu:agent:event",
+            listener,
+          );
+
+          return () => {
+            ipcRenderer.removeListener(
+              "tongyu:agent:event",
+              listener,
+            );
+          };
+        },
+    },
+
     sessions: {
       list:
         () =>
