@@ -258,7 +258,9 @@ function createPermissionDetails(
     permission.toolName !==
       "filesystem.edit" &&
     permission.toolName !==
-      "filesystem.patch"
+      "filesystem.patch" &&
+    permission.toolName !==
+      "filesystem.write"
   ) {
     return fallback();
   }
@@ -306,6 +308,54 @@ function createPermissionDetails(
       1,
       0,
       `before sha256: ${expectedBeforeSha256}`,
+    );
+  }
+
+  if (
+    permission.toolName ===
+    "filesystem.write"
+  ) {
+    const beforeContent =
+      readString(
+        permission.arguments,
+        "beforeContent",
+      );
+
+    const content =
+      readString(
+        permission.arguments,
+        "content",
+      );
+
+    if (
+      beforeContent ===
+        undefined ||
+      content ===
+        undefined
+    ) {
+      return fallback();
+    }
+
+    preview.push(
+      `operation: ${
+        permission.arguments[
+          "willCreate"
+        ] === true
+          ? "create"
+          : "replace"
+      }`,
+      "",
+    );
+
+    appendReplacementPreview(
+      preview,
+      1,
+      beforeContent,
+      content,
+    );
+
+    return limitPermissionPreview(
+      preview,
     );
   }
 

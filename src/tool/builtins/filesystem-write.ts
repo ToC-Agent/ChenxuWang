@@ -4,6 +4,7 @@ import {
 
 import {
   lstat,
+  readFile,
   realpath,
   rename,
   rm,
@@ -25,7 +26,15 @@ import {
 
 import type {
   Tool,
+  ToolExecutionContext,
+  ToolPreparation,
 } from "../types.js";
+
+import {
+  createTextFileChangeSet,
+  createTextReplacementChange,
+  type TextFileChangeSet,
+} from "./text-change-set.js";
 
 const MAX_WRITE_BYTES =
   1024 * 1024;
@@ -57,8 +66,40 @@ type FilesystemWriteInput =
 
 export interface FilesystemWriteOutput {
   path: string;
+
   bytes: number;
+
   created: boolean;
+
+  changeSet:
+    TextFileChangeSet;
+}
+
+interface FilesystemWriteTarget {
+  workspacePath: string;
+
+  path: string;
+
+  relativePath: string;
+
+  parentPath: string;
+
+  exists: boolean;
+
+  mode: number;
+
+  content: string;
+}
+
+interface FilesystemWritePreparation {
+  beforeExists: boolean;
+
+  beforeContent: string;
+
+  afterContent: string;
+
+  changeSet:
+    TextFileChangeSet;
 }
 
 function isInsideWorkspace(
@@ -87,25 +128,90 @@ function isInsideWorkspace(
   );
 }
 
-async function getExistingFile(
-  path: string,
+async function resolveWriteTarget(
+  cwd: string,
+  inputPath: string,
 ): Promise<
-  {
-    exists: boolean;
-    mode?: number;
-  }
+  FilesystemWriteTarget
 > {
+  const workspacePath =
+    await realpath(
+      cwd,
+    );
+
+  const requestedPath =
+    resolve(
+      workspacePath,
+      inputPath,
+    );
+
+  if (
+    !isInsideWorkspace(
+      workspacePath,
+      requestedPath,
+    )
+  ) {
+    throw new Error(
+      `Refusing to write outside the workspace: ${inputPath}`,
+    );
+  }
+
+  /*
+   * Resolve the parent rather than following the final
+   * target. This prevents a workspace symlink directory
+   * from redirecting writes outside the workspace.
+   */
+  const requestedParent =
+    dirname(
+      requestedPath,
+    );
+
+  const resolvedParent =
+    await realpath(
+      requestedParent,
+    );
+
+  if (
+    !isInsideWorkspace(
+      workspacePath,
+      resolvedParent,
+    )
+  ) {
+    throw new Error(
+      `Refusing to write outside the workspace: ${inputPath}`,
+    );
+  }
+
+  const finalPath =
+    resolve(
+      resolvedParent,
+      basename(
+        requestedPath,
+      ),
+    );
+
+  if (
+    !isInsideWorkspace(
+      workspacePath,
+      finalPath,
+    )
+  ) {
+    throw new Error(
+      `Refusing to write outside the workspace: ${inputPath}`,
+    );
+  }
+
   try {
     const stats =
       await lstat(
-        path,
+        finalPath,
       );
 
     if (
       stats.isSymbolicLink()
     ) {
       throw new Error(
-        `Refusing to write through a symbolic link: ${path}`,
+        `Refusing to write through a symbolic link: ${inputPath}`,
       );
     }
 
@@ -113,17 +219,68 @@ async function getExistingFile(
       !stats.isFile()
     ) {
       throw new Error(
-        `Path is not a regular file: ${path}`,
+        `Path is not a regular file: ${inputPath}`,
       );
     }
 
+    /*
+     * Reviewed whole-file replacement needs the complete
+     * previous text so it can construct an exact ChangeSet.
+     */
+    if (
+      stats.size >
+        MAX_WRITE_BYTES
+    ) {
+      throw new Error(
+        `Existing file exceeds the ${MAX_WRITE_BYTES} byte reviewed-write limit.`,
+      );
+    }
+
+    const resolvedExisting =
+      await realpath(
+        finalPath,
+      );
+
+    if (
+      !isInsideWorkspace(
+        workspacePath,
+        resolvedExisting,
+      )
+    ) {
+      throw new Error(
+        `Refusing to write outside the workspace: ${inputPath}`,
+      );
+    }
+
+    const content =
+      await readFile(
+        finalPath,
+        "utf8",
+      );
+
     return {
+      workspacePath,
+
+      path:
+        finalPath,
+
+      relativePath:
+        relative(
+          workspacePath,
+          finalPath,
+        ),
+
+      parentPath:
+        resolvedParent,
+
       exists:
         true,
 
       mode:
         stats.mode &
         0o777,
+
+      content,
     };
   } catch (error) {
     if (
@@ -135,8 +292,28 @@ async function getExistingFile(
         "ENOENT"
     ) {
       return {
+        workspacePath,
+
+        path:
+          finalPath,
+
+        relativePath:
+          relative(
+            workspacePath,
+            finalPath,
+          ),
+
+        parentPath:
+          resolvedParent,
+
         exists:
           false,
+
+        mode:
+          0o600,
+
+        content:
+          "",
       };
     }
 
@@ -144,16 +321,167 @@ async function getExistingFile(
   }
 }
 
+async function writeTargetAtomic(
+  target:
+    FilesystemWriteTarget,
+  content: string,
+): Promise<number> {
+  const bytes =
+    Buffer.byteLength(
+      content,
+      "utf8",
+    );
+
+  if (
+    bytes >
+      MAX_WRITE_BYTES
+  ) {
+    throw new Error(
+      `Content exceeds the ${MAX_WRITE_BYTES} byte write limit.`,
+    );
+  }
+
+  const tempPath =
+    resolve(
+      target.parentPath,
+      `.${basename(target.path)}.tongyu-${randomUUID()}.tmp`,
+    );
+
+  try {
+    await writeFile(
+      tempPath,
+      content,
+      {
+        encoding:
+          "utf8",
+
+        flag:
+          "wx",
+
+        mode:
+          target.mode,
+      },
+    );
+
+    await rename(
+      tempPath,
+      target.path,
+    );
+  } finally {
+    await rm(
+      tempPath,
+      {
+        force:
+          true,
+      },
+    );
+  }
+
+  return bytes;
+}
+
+async function prepareFilesystemWrite(
+  input:
+    FilesystemWriteInput,
+  context:
+    ToolExecutionContext,
+): Promise<
+  ToolPreparation<
+    FilesystemWritePreparation
+  >
+> {
+  const bytes =
+    Buffer.byteLength(
+      input.content,
+      "utf8",
+    );
+
+  if (
+    bytes >
+      MAX_WRITE_BYTES
+  ) {
+    throw new Error(
+      `Content exceeds the ${MAX_WRITE_BYTES} byte write limit.`,
+    );
+  }
+
+  const target =
+    await resolveWriteTarget(
+      context.cwd,
+      input.path,
+    );
+
+  const change =
+    createTextReplacementChange({
+      sequence:
+        1,
+
+      startLine:
+        1,
+
+      oldText:
+        target.content,
+
+      newText:
+        input.content,
+    });
+
+  const changeSet =
+    createTextFileChangeSet({
+      path:
+        target.relativePath,
+
+      beforeContent:
+        target.content,
+
+      afterContent:
+        input.content,
+
+      changes: [
+        change,
+      ],
+    });
+
+  return {
+    data: {
+      beforeExists:
+        target.exists,
+
+      beforeContent:
+        target.content,
+
+      afterContent:
+        input.content,
+
+      changeSet,
+    },
+
+    permissionArguments: {
+      ...input,
+
+      expectedBeforeSha256:
+        changeSet.beforeSha256,
+
+      beforeContent:
+        target.content,
+
+      willCreate:
+        !target.exists,
+    },
+  };
+}
+
 export const filesystemWriteTool:
   Tool<
     FilesystemWriteInput,
-    FilesystemWriteOutput
+    FilesystemWriteOutput,
+    FilesystemWritePreparation
   > = {
     name:
       "filesystem.write",
 
     description:
-      "Write UTF-8 text to a file inside the current working directory. The path must be relative to the workspace. Existing files are replaced atomically.",
+      "Create or completely replace a UTF-8 text file inside the current workspace. The write is prepared before permission and executed atomically only if the target has not changed while the user reviews the preview.",
 
     permission:
       "workspace.write",
@@ -161,178 +489,73 @@ export const filesystemWriteTool:
     inputSchema:
       FilesystemWriteInputSchema,
 
+    prepare:
+      prepareFilesystemWrite,
+
     async execute(
       input,
       context,
+      preparation,
     ) {
-      const bytes =
-        Buffer.byteLength(
-          input.content,
-          "utf8",
-        );
+      const prepared =
+        preparation ??
+        (
+          await prepareFilesystemWrite(
+            input,
+            context,
+          )
+        ).data;
 
-      if (
-        bytes >
-        MAX_WRITE_BYTES
-      ) {
-        throw new Error(
-          `Content exceeds the ${MAX_WRITE_BYTES} byte write limit.`,
-        );
-      }
-
-      const workspacePath =
-        await realpath(
+      /*
+       * Re-resolve and re-read after permission.
+       */
+      const current =
+        await resolveWriteTarget(
           context.cwd,
-        );
-
-      const requestedPath =
-        resolve(
-          workspacePath,
           input.path,
         );
 
-      /*
-       * Reject lexical traversal before touching
-       * the filesystem.
-       */
       if (
-        !isInsideWorkspace(
-          workspacePath,
-          requestedPath,
-        )
+        prepared.beforeExists
       ) {
-        throw new Error(
-          `Refusing to write outside the workspace: ${input.path}`,
-        );
-      }
-
-      /*
-       * Resolve the parent directory. This prevents:
-       *
-       * workspace/link -> /outside
-       * filesystem.write("link/file.txt")
-       */
-      const requestedParent =
-        dirname(
-          requestedPath,
-        );
-
-      const resolvedParent =
-        await realpath(
-          requestedParent,
-        );
-
-      if (
-        !isInsideWorkspace(
-          workspacePath,
-          resolvedParent,
-        )
-      ) {
-        throw new Error(
-          `Refusing to write outside the workspace: ${input.path}`,
-        );
-      }
-
-      const finalPath =
-        resolve(
-          resolvedParent,
-          basename(
-            requestedPath,
-          ),
-        );
-
-      if (
-        !isInsideWorkspace(
-          workspacePath,
-          finalPath,
-        )
-      ) {
-        throw new Error(
-          `Refusing to write outside the workspace: ${input.path}`,
-        );
-      }
-
-      const existing =
-        await getExistingFile(
-          finalPath,
-        );
-
-      /*
-       * If it already exists, verify that its real path
-       * still resolves inside the workspace.
-       */
-      if (
-        existing.exists
-      ) {
-        const resolvedExisting =
-          await realpath(
-            finalPath,
-          );
-
         if (
-          !isInsideWorkspace(
-            workspacePath,
-            resolvedExisting,
-          )
+          !current.exists ||
+          current.content !==
+            prepared.beforeContent
         ) {
           throw new Error(
-            `Refusing to write outside the workspace: ${input.path}`,
+            `File changed after permission preview; refusing stale write: ${input.path}`,
           );
         }
-      }
-
-      const tempPath =
-        resolve(
-          resolvedParent,
-          `.${basename(finalPath)}.tongyu-${randomUUID()}.tmp`,
-        );
-
-      try {
-        await writeFile(
-          tempPath,
-          input.content,
-          {
-            encoding:
-              "utf8",
-
-            flag:
-              "wx",
-
-            mode:
-              existing.mode ??
-              0o600,
-          },
-        );
-
-        await rename(
-          tempPath,
-          finalPath,
-        );
-      } finally {
+      } else if (
+        current.exists
+      ) {
         /*
-         * rename() removes tempPath on success.
-         * rm(force=true) also makes failure cleanup safe.
+         * The preview approved creation of a NEW file.
+         * Never overwrite a file that appeared while waiting.
          */
-        await rm(
-          tempPath,
-          {
-            force:
-              true,
-          },
+        throw new Error(
+          `File appeared after permission preview; refusing stale write: ${input.path}`,
         );
       }
+
+      const bytes =
+        await writeTargetAtomic(
+          current,
+          prepared.afterContent,
+        );
 
       return {
         path:
-          relative(
-            workspacePath,
-            finalPath,
-          ),
+          current.relativePath,
 
         bytes,
 
         created:
-          !existing.exists,
+          !prepared.beforeExists,
+
+        changeSet:
+          prepared.changeSet,
       };
     },
   };
