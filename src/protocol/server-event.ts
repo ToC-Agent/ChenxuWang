@@ -524,6 +524,105 @@ const WorkspaceChangeListEndEventSchema =
         .nonnegative(),
   }).strict();
 
+const WorkspaceChangeSummaryItemEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.summary.item",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    path:
+      z.string().min(1),
+
+    mutationCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    replacementCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    firstBeforeSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    firstBeforeBytes:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    latestAfterSha256:
+      z.string()
+        .regex(
+          /^[0-9a-f]{64}$/,
+        ),
+
+    latestAfterBytes:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    latestSessionEventId:
+      z.string().min(1),
+
+    latestSourceRequestId:
+      RequestIdSchema,
+
+    latestSourceToolName:
+      z.string().min(1),
+  }).strict();
+
+const WorkspaceChangeSummaryEndEventSchema =
+  z.object({
+    id:
+      EventIdSchema,
+
+    type:
+      z.literal(
+        "workspace.change.summary.end",
+      ),
+
+    timestamp:
+      TimestampSchema,
+
+    requestId:
+      RequestIdSchema,
+
+    sessionId:
+      SessionIdSchema,
+
+    fileCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    mutationCount:
+      z.number()
+        .int()
+        .nonnegative(),
+
+    replacementCount:
+      z.number()
+        .int()
+        .nonnegative(),
+  }).strict();
+
 const RuntimeErrorEventSchema =
   z.object({
     id:
@@ -673,6 +772,8 @@ export const ServerEventSchema =
       WorkspaceChangeEventSchema,
       WorkspaceChangeItemEventSchema,
       WorkspaceChangeListEndEventSchema,
+      WorkspaceChangeSummaryItemEventSchema,
+      WorkspaceChangeSummaryEndEventSchema,
       RuntimeErrorEventSchema,
       SessionEndEventSchema,
     ],

@@ -14,9 +14,12 @@ export type {
 
 export {
   deriveWorkspaceChanges,
+  summarizeWorkspaceChanges,
 } from "./changes.js";
 
 export type {
+  WorkspaceChangeFileSummary,
   WorkspaceChangeFilter,
   WorkspaceChangeRecord,
+  WorkspaceChangeSummary,
 } from "./changes.js";

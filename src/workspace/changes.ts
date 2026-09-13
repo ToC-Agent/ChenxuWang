@@ -28,6 +28,62 @@ export interface WorkspaceChangeFilter {
     string;
 }
 
+export interface WorkspaceChangeFileSummary {
+  path: string;
+
+  /*
+   * Number of successful workspace mutation events
+   * affecting this file.
+   */
+  mutationCount: number;
+
+  /*
+   * Sum of TextReplacementChange entries across all
+   * mutations affecting this file.
+   */
+  replacementCount: number;
+
+  /*
+   * State before the first mutation visible through
+   * the selected filter.
+   */
+  firstBeforeSha256:
+    string;
+
+  firstBeforeBytes:
+    number;
+
+  /*
+   * State after the latest mutation visible through
+   * the selected filter.
+   */
+  latestAfterSha256:
+    string;
+
+  latestAfterBytes:
+    number;
+
+  latestSessionEventId:
+    string;
+
+  latestSourceRequestId:
+    string;
+
+  latestSourceToolName:
+    string;
+}
+
+export interface WorkspaceChangeSummary {
+  fileCount: number;
+
+  mutationCount: number;
+
+  replacementCount: number;
+
+  files:
+    readonly WorkspaceChangeFileSummary[];
+}
+
 function createToolCallKey(
   requestId: string,
   toolCallId: string,
@@ -155,4 +211,125 @@ export function deriveWorkspaceChanges(
   }
 
   return changes;
+}
+
+export function summarizeWorkspaceChanges(
+  events:
+    readonly SessionEvent[],
+  filter:
+    WorkspaceChangeFilter = {},
+): WorkspaceChangeSummary {
+  const changes =
+    deriveWorkspaceChanges(
+      events,
+      filter,
+    );
+
+  const filesByPath =
+    new Map<
+      string,
+      WorkspaceChangeFileSummary
+    >();
+
+  let replacementCount =
+    0;
+
+  for (
+    const change of changes
+  ) {
+    const {
+      changeSet,
+    } =
+      change;
+
+    const currentReplacementCount =
+      changeSet.changes.length;
+
+    replacementCount +=
+      currentReplacementCount;
+
+    const existing =
+      filesByPath.get(
+        changeSet.path,
+      );
+
+    if (
+      existing
+    ) {
+      existing.mutationCount +=
+        1;
+
+      existing.replacementCount +=
+        currentReplacementCount;
+
+      existing.latestAfterSha256 =
+        changeSet.afterSha256;
+
+      existing.latestAfterBytes =
+        changeSet.afterBytes;
+
+      existing.latestSessionEventId =
+        change.sessionEventId;
+
+      existing.latestSourceRequestId =
+        change.sourceRequestId;
+
+      existing.latestSourceToolName =
+        change.sourceToolName;
+
+      continue;
+    }
+
+    filesByPath.set(
+      changeSet.path,
+      {
+        path:
+          changeSet.path,
+
+        mutationCount:
+          1,
+
+        replacementCount:
+          currentReplacementCount,
+
+        firstBeforeSha256:
+          changeSet.beforeSha256,
+
+        firstBeforeBytes:
+          changeSet.beforeBytes,
+
+        latestAfterSha256:
+          changeSet.afterSha256,
+
+        latestAfterBytes:
+          changeSet.afterBytes,
+
+        latestSessionEventId:
+          change.sessionEventId,
+
+        latestSourceRequestId:
+          change.sourceRequestId,
+
+        latestSourceToolName:
+          change.sourceToolName,
+      },
+    );
+  }
+
+  const files =
+    [
+      ...filesByPath.values(),
+    ];
+
+  return {
+    fileCount:
+      files.length,
+
+    mutationCount:
+      changes.length,
+
+    replacementCount,
+
+    files,
+  };
 }

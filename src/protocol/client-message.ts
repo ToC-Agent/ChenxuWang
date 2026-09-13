@@ -155,6 +155,29 @@ const SessionListMessageSchema =
       ),
   }).strict();
 
+const WorkspaceChangesSummaryMessageSchema =
+  z.object({
+    id:
+      MessageIdSchema,
+
+    type:
+      z.literal(
+        "workspace.changes.summary",
+      ),
+
+    sessionId:
+      SessionIdSchema,
+
+    sourceRequestId:
+      MessageIdSchema
+        .optional(),
+
+    path:
+      z.string()
+        .min(1)
+        .optional(),
+  }).strict();
+
 const WorkspaceChangesListMessageSchema =
   z.object({
     id:
@@ -187,6 +210,7 @@ export const ClientMessageSchema =
       SessionResumeMessageSchema,
       SessionListMessageSchema,
       WorkspaceChangesListMessageSchema,
+      WorkspaceChangesSummaryMessageSchema,
       SessionCloseMessageSchema,
       UserMessageSchema,
       PermissionResponseMessageSchema,

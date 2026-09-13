@@ -1,5 +1,6 @@
 import {
   deriveWorkspaceChanges,
+  summarizeWorkspaceChanges,
 } from "../workspace/index.js";
 
 import {
@@ -1104,6 +1105,128 @@ export async function runStdioServer(
 
       continue;
     }
+    if (
+      message.type ===
+        "workspace.changes.summary"
+    ) {
+      try {
+        const snapshot =
+          sessionManager.resume(
+            message.sessionId,
+          );
+
+        const summary =
+          summarizeWorkspaceChanges(
+            snapshot.events,
+            {
+              ...(
+                message.sourceRequestId
+                  ? {
+                      sourceRequestId:
+                        message.sourceRequestId,
+                    }
+                  : {}
+              ),
+
+              ...(
+                message.path
+                  ? {
+                      path:
+                        message.path,
+                    }
+                  : {}
+              ),
+            },
+          );
+
+        for (
+          const fileSummary of
+            summary.files
+        ) {
+          writeEvent({
+            id:
+              createEventId(),
+
+            type:
+              "workspace.change.summary.item",
+
+            timestamp:
+              Date.now(),
+
+            requestId:
+              message.id,
+
+            sessionId:
+              snapshot.session.id,
+
+            path:
+              fileSummary.path,
+
+            mutationCount:
+              fileSummary.mutationCount,
+
+            replacementCount:
+              fileSummary.replacementCount,
+
+            firstBeforeSha256:
+              fileSummary.firstBeforeSha256,
+
+            firstBeforeBytes:
+              fileSummary.firstBeforeBytes,
+
+            latestAfterSha256:
+              fileSummary.latestAfterSha256,
+
+            latestAfterBytes:
+              fileSummary.latestAfterBytes,
+
+            latestSessionEventId:
+              fileSummary.latestSessionEventId,
+
+            latestSourceRequestId:
+              fileSummary.latestSourceRequestId,
+
+            latestSourceToolName:
+              fileSummary.latestSourceToolName,
+          });
+        }
+
+        writeEvent({
+          id:
+            createEventId(),
+
+          type:
+            "workspace.change.summary.end",
+
+          timestamp:
+            Date.now(),
+
+          requestId:
+            message.id,
+
+          sessionId:
+            snapshot.session.id,
+
+          fileCount:
+            summary.fileCount,
+
+          mutationCount:
+            summary.mutationCount,
+
+          replacementCount:
+            summary.replacementCount,
+        });
+      } catch (error) {
+        writeTurnError(
+          error,
+          message.id,
+          message.sessionId,
+        );
+      }
+
+      continue;
+    }
+
 
     if (
       message.type ===
