@@ -3,6 +3,10 @@ import {
 } from "./builtins/filesystem-read.js";
 
 import {
+  filesystemEditTool,
+} from "./builtins/filesystem-edit.js";
+
+import {
   filesystemWriteTool,
 } from "./builtins/filesystem-write.js";
 
@@ -21,6 +25,10 @@ export function createDefaultToolRegistry():
 
   registry.register(
     filesystemReadTool,
+  );
+
+  registry.register(
+    filesystemEditTool,
   );
 
   registry.register(

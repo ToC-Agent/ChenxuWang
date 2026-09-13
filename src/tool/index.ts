@@ -64,3 +64,11 @@ export {
 export type {
   ShellExecOutput,
 } from "./builtins/shell-exec.js";
+
+export {
+  filesystemEditTool,
+} from "./builtins/filesystem-edit.js";
+
+export type {
+  FilesystemEditOutput,
+} from "./builtins/filesystem-edit.js";
